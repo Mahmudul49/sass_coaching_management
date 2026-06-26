@@ -1,0 +1,40 @@
+{
+  "name": "coaching-management",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "seed:superadmin": "tsx scripts/seedSuperAdmin.ts",
+    "db:indexes": "tsx scripts/ensureIndexes.ts"
+  },
+  "dependencies": {
+    "@auth/mongodb-adapter": "^3.7.4",
+    "@emotion/cache": "^11.13.5",
+    "@emotion/react": "^11.13.5",
+    "@emotion/styled": "^11.13.5",
+    "@mui/icons-material": "^6.1.9",
+    "@mui/material": "^6.1.9",
+    "@mui/material-nextjs": "^6.1.9",
+    "@mui/x-data-grid": "^7.23.0",
+    "bcryptjs": "^2.4.3",
+    "mongodb": "^6.11.0",
+    "next": "^15.5.0",
+    "next-auth": "^5.0.0-beta.25",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "dotenv": "^16.4.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
