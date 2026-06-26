@@ -3,9 +3,23 @@
 Multi-tenant **Coaching Management SaaS** for coaching centers in Bangladesh.
 Bengali UI, mobile-first, built for non-technical center owners.
 
-> **Status:** Group A complete (database, auth, tenant isolation). Group B
-> (super-admin UI, admin setup wizard, master data + bulk import, attendance,
-> payments + receipts, due report + Excel export, shared MUI layout) in progress.
+> **Status:** Complete. Super-admin (tenant/admin management), admin setup
+> wizard, master data + bulk Excel import, attendance (optional SMS), payments
+> with partial support + printable receipts, due report + Excel export, settings,
+> and a mobile-first MUI shell — all built on the tenant-isolation core.
+
+## Try it in 2 minutes
+
+```bash
+npm install
+npm run db:indexes
+npm run seed:superadmin   # super admin (root domain) from .env.local
+npm run seed:demo         # demo tenant with sample data
+npm run dev
+```
+
+- Super admin: http://localhost:3000 (login with SUPERADMIN_PHONE / SUPERADMIN_PASSWORD)
+- Demo center: http://demo.localhost:3000 — phone `01711111111`, password `demo123`
 
 ## Stack
 
