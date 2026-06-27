@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import NextLink from "next/link";
 import AppBar from "@mui/material/AppBar";
@@ -27,33 +27,43 @@ import AssessmentIcon from "@mui/icons-material/Assessment";
 import SettingsIcon from "@mui/icons-material/Settings";
 import SchoolIcon from "@mui/icons-material/School";
 import LogoutButton from "./LogoutButton";
+import { tenantAdminBaseFromPath } from "./tenantAdminBase";
 
 const DRAWER_WIDTH = 248;
 
-const NAV: { href: string; label: string; icon: ReactNode }[] = [
-  { href: "/admin", label: "ড্যাশবোর্ড", icon: <DashboardIcon /> },
-  { href: "/admin/classes", label: "ক্লাস", icon: <ClassIcon /> },
-  { href: "/admin/sections", label: "শাখা", icon: <CategoryIcon /> },
-  { href: "/admin/fees", label: "ফি স্ট্রাকচার", icon: <ReceiptLongIcon /> },
-  { href: "/admin/students", label: "ছাত্র", icon: <GroupsIcon /> },
-  { href: "/admin/attendance", label: "উপস্থিতি", icon: <FactCheckIcon /> },
-  { href: "/admin/payments", label: "পেমেন্ট", icon: <PaidIcon /> },
-  { href: "/admin/reports", label: "বকেয়া রিপোর্ট", icon: <AssessmentIcon /> },
-  { href: "/admin/settings", label: "সেটিংস", icon: <SettingsIcon /> },
-];
+function useAdminBase(): string {
+  const pathname = usePathname();
+  return tenantAdminBaseFromPath(pathname);
+}
 
 export default function AdminShell({
   centerName,
   children,
 }: {
   centerName: string;
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const base = useAdminBase();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const nav = useMemo(
+    () => [
+      { href: base, label: "ড্যাশবোর্ড", icon: <DashboardIcon /> },
+      { href: `${base}/classes`, label: "ক্লাস", icon: <ClassIcon /> },
+      { href: `${base}/sections`, label: "শাখা", icon: <CategoryIcon /> },
+      { href: `${base}/fees`, label: "ফি স্ট্রাকচার", icon: <ReceiptLongIcon /> },
+      { href: `${base}/students`, label: "ছাত্র", icon: <GroupsIcon /> },
+      { href: `${base}/attendance`, label: "উপস্থিতি", icon: <FactCheckIcon /> },
+      { href: `${base}/payments`, label: "পেমেন্ট", icon: <PaidIcon /> },
+      { href: `${base}/reports`, label: "বকেয়া রিপোর্ট", icon: <AssessmentIcon /> },
+      { href: `${base}/settings`, label: "সেটিংস", icon: <SettingsIcon /> },
+    ],
+    [base]
+  );
+
   const isActive = (href: string) =>
-    href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+    href === base ? pathname === base : pathname.startsWith(href);
 
   const drawerContent = (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -65,7 +75,7 @@ export default function AdminShell({
       </Toolbar2>
       <Divider />
       <List sx={{ flexGrow: 1, py: 1 }}>
-        {NAV.map((item) => (
+        {nav.map((item) => (
           <ListItem key={item.href} disablePadding sx={{ px: 1 }}>
             <ListItemButton
               component={NextLink}
@@ -115,7 +125,6 @@ export default function AdminShell({
         </Toolbar>
       </AppBar>
 
-      {/* Mobile temporary drawer */}
       <Drawer
         variant="temporary"
         open={mobileOpen}
@@ -129,7 +138,6 @@ export default function AdminShell({
         {drawerContent}
       </Drawer>
 
-      {/* Desktop permanent drawer */}
       <Drawer
         variant="permanent"
         sx={{

@@ -20,7 +20,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/providers/ToastProvider";
-import { saveFeeStructure } from "@/app/admin/actions/master";
+import { saveFeeStructure } from "@/app/[tenant]/admin/actions/master";
 import type { FeeRow } from "@/lib/admin/queries";
 import { BN_MONTHS, monthName, taka } from "@/lib/format";
 

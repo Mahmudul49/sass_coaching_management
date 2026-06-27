@@ -1,4 +1,5 @@
 import "server-only";
+
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db/connect";
@@ -35,15 +36,10 @@ function toPublic(doc: TenantDoc): PublicTenant {
   };
 }
 
-/** Read the slug the middleware parsed from the Host header. "" means root. */
-export async function getTenantSlug(): Promise<string> {
-  const h = await headers();
-  return h.get("x-tenant-slug") ?? "";
-}
-
 /** Look a tenant up by slug (cached). Returns null if not found. */
 export async function getTenantBySlug(slug: string): Promise<PublicTenant | null> {
   if (!slug) return null;
+
 
   const hit = cache.get(slug);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
@@ -62,14 +58,21 @@ export function invalidateTenant(slug: string) {
   cache.delete(slug);
 }
 
+/** Read the tenant slug set by edge middleware from the request path. */
+export async function getTenantSlug(): Promise<string> {
+  const h = await headers();
+  return h.get("x-tenant-slug") ?? "";
+}
+
 /**
- * Resolve the current subdomain's tenant or 404. Use this in the admin layout
- * and any tenant-scoped page so an unknown/typo'd subdomain never resolves.
+ * Resolve a tenant by slug or 404.
+ * Use this in any tenant-scoped route, e.g. `app/[tenant]/admin/*`.
  */
-export async function requireTenant(): Promise<PublicTenant> {
-  const slug = await getTenantSlug();
-  if (!slug) notFound(); // root domain has no tenant context
+export async function requireTenant(tenantSlug: string): Promise<PublicTenant> {
+  const slug = String(tenantSlug ?? "").trim();
+  if (!slug) notFound();
   const tenant = await getTenantBySlug(slug);
   if (!tenant) notFound();
   return tenant;
 }
+

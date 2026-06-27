@@ -9,7 +9,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Alert from "@mui/material/Alert";
 import Divider from "@mui/material/Divider";
 import { useToast } from "@/components/providers/ToastProvider";
-import { setAttendanceSms } from "@/app/admin/actions/settings";
+import { setAttendanceSms } from "@/app/[tenant]/admin/actions/settings";
 
 export default function SettingsClient({
   centerName,

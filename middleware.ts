@@ -1,24 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { slugFromHost } from "@/lib/tenant/host";
+import { slugFromPath } from "@/lib/tenant/paths";
 
 /**
- * Tenant resolution at the edge.
+ * Tenant resolution at the edge — path-based.
  *
- * The MongoDB driver cannot run on the Edge runtime, so this middleware does
- * the *pure* part of tenant resolution — parsing the subdomain slug from the
- * Host header — and forwards it to server components/handlers via the
- * `x-tenant-slug` request header.
+ * Parses the first URL segment as the tenant slug (unless it is a reserved
+ * root route like /superadmin or /login) and forwards it to server code via
+ * the `x-tenant-slug` request header.
  *
- * DB-backed validation (does this slug exist? is the tenant active? does the
- * logged-in admin's session.tenantId match this subdomain?) happens in
- * `lib/tenant/server.ts` (`requireTenant`) which runs in the Node runtime where
- * Mongo is available. An unknown slug there triggers `notFound()` (404), and a
- * session/subdomain mismatch triggers a 403 — never a fallback to a default
- * tenant.
+ * DB-backed validation still happens in `lib/tenant/server.ts` (`requireTenant`).
  */
 export function middleware(req: NextRequest) {
-  const host = req.headers.get("host");
-  const slug = slugFromHost(host);
+  const slug = slugFromPath(req.nextUrl.pathname);
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-tenant-slug", slug);
@@ -27,6 +20,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Run on everything except Next internals and static assets.
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

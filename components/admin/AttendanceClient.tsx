@@ -17,7 +17,7 @@ import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/providers/ToastProvider";
-import { saveAttendance, resendAttendanceSms } from "@/app/admin/actions/attendance";
+import { saveAttendance, resendAttendanceSms } from "@/app/[tenant]/admin/actions/attendance";
 import type { ClassRow, StudentRow } from "@/lib/admin/queries";
 import type { AttendanceStatus } from "@/lib/db/collections";
 import { toBnDigits } from "@/lib/format";

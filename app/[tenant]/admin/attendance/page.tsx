@@ -8,11 +8,14 @@ import AttendanceClient from "@/components/admin/AttendanceClient";
 import { todayISO } from "@/lib/format";
 
 export default async function AttendancePage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ tenant: string }>;
   searchParams: Promise<{ classId?: string; date?: string }>;
 }) {
-  const { db, tenant } = await requireAdmin();
+  const { tenant: slug } = await params;
+  const { db, tenant } = await requireAdmin(slug);
   const classes = await listClasses(db);
 
   if (classes.length === 0) {

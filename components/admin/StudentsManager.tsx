@@ -21,7 +21,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import StudentFormDialog from "./StudentFormDialog";
 import BulkImportDialog from "./BulkImportDialog";
 import { useToast } from "@/components/providers/ToastProvider";
-import { deleteStudent } from "@/app/admin/actions/students";
+import { deleteStudent } from "@/app/[tenant]/admin/actions/students";
 import type { ClassRow, SectionRow, StudentRow } from "@/lib/admin/queries";
 
 function Toolbar() {

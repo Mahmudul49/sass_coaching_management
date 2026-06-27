@@ -8,8 +8,9 @@ import {
 } from "@/lib/admin/queries";
 import SetupWizard from "@/components/admin/SetupWizard";
 
-export default async function SetupPage() {
-  const { db } = await requireAdmin();
+export default async function SetupPage({ params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params;
+  const { db } = await requireAdmin(tenant);
   const [classes, sections, fees, students, status] = await Promise.all([
     listClasses(db),
     listSections(db),

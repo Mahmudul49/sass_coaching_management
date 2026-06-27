@@ -7,6 +7,7 @@ import Container from "@mui/material/Container";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { requireSuperAdmin } from "@/lib/auth/guards";
 import LogoutButton from "@/components/layout/LogoutButton";
+import SuperAdminNav from "@/components/superadmin/SuperAdminNav";
 
 export default async function SuperAdminLayout({ children }: { children: ReactNode }) {
   await requireSuperAdmin(); // redirects to /login or 403s
@@ -23,6 +24,7 @@ export default async function SuperAdminLayout({ children }: { children: ReactNo
         </Toolbar>
       </AppBar>
       <Container maxWidth="lg" sx={{ py: 3 }}>
+        <SuperAdminNav />
         {children}
       </Container>
     </Box>

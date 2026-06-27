@@ -1,28 +1,27 @@
 "use server";
-import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireAdminFromRequest } from "@/lib/auth/guards";
 import { Collections } from "@/lib/db/collections";
 import { toObjectId } from "@/lib/db/oid";
+import {
+  revalidateTenantAdminLayout,
+  revalidateTenantAdminPage,
+} from "@/lib/tenant/revalidate";
 
 export type ActionResult = { ok: boolean; error?: string };
 
 const ok: ActionResult = { ok: true };
 const fail = (error: string): ActionResult => ({ ok: false, error });
 
-function revalidateAdmin() {
-  revalidatePath("/admin", "layout");
-}
-
 /* ───────────────────────── Classes ───────────────────────── */
 
 export async function createClass(name: string, order?: number): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const n = name?.trim();
   if (!n) return fail("ক্লাসের নাম দিন।");
   const dup = await db.collection(Collections.classes).findOne({ name: n });
   if (dup) return fail("এই নামে ক্লাস আগে থেকেই আছে।");
   await db.collection(Collections.classes).insertOne({ name: n, order: order ?? 0 } as never);
-  revalidateAdmin();
+  await revalidateTenantAdminLayout();
   return ok;
 }
 
@@ -31,7 +30,7 @@ export async function updateClass(
   name: string,
   order: number
 ): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const _id = toObjectId(id);
   if (!_id) return fail("ভুল আইডি।");
   const n = name?.trim();
@@ -39,12 +38,12 @@ export async function updateClass(
   await db
     .collection(Collections.classes)
     .updateOne({ _id } as never, { $set: { name: n, order: order ?? 0 } });
-  revalidateAdmin();
+  await revalidateTenantAdminLayout();
   return ok;
 }
 
 export async function deleteClass(id: string): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const _id = toObjectId(id);
   if (!_id) return fail("ভুল আইডি।");
   const students = await db.collection(Collections.students).countDocuments({ classId: id });
@@ -52,14 +51,14 @@ export async function deleteClass(id: string): Promise<ActionResult> {
   await db.collection(Collections.classes).deleteOne({ _id } as never);
   await db.collection(Collections.sections).deleteMany({ classId: id });
   await db.collection(Collections.feeStructure).deleteMany({ classId: id });
-  revalidateAdmin();
+  await revalidateTenantAdminLayout();
   return ok;
 }
 
 /* ───────────────────────── Sections ───────────────────────── */
 
 export async function createSection(classId: string, name: string): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const n = name?.trim();
   if (!classId) return fail("ক্লাস নির্বাচন করুন।");
   if (!n) return fail("শাখার নাম দিন।");
@@ -68,29 +67,29 @@ export async function createSection(classId: string, name: string): Promise<Acti
   const dup = await db.collection(Collections.sections).findOne({ classId, name: n });
   if (dup) return fail("এই শাখা আগে থেকেই আছে।");
   await db.collection(Collections.sections).insertOne({ classId, name: n } as never);
-  revalidateAdmin();
+  await revalidateTenantAdminLayout();
   return ok;
 }
 
 export async function updateSection(id: string, name: string): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const _id = toObjectId(id);
   if (!_id) return fail("ভুল আইডি।");
   const n = name?.trim();
   if (!n) return fail("শাখার নাম দিন।");
   await db.collection(Collections.sections).updateOne({ _id } as never, { $set: { name: n } });
-  revalidateAdmin();
+  await revalidateTenantAdminLayout();
   return ok;
 }
 
 export async function deleteSection(id: string): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const _id = toObjectId(id);
   if (!_id) return fail("ভুল আইডি।");
   const students = await db.collection(Collections.students).countDocuments({ sectionId: id });
   if (students > 0) return fail("এই শাখায় ছাত্র আছে — আগে ছাত্র সরান।");
   await db.collection(Collections.sections).deleteOne({ _id } as never);
-  revalidateAdmin();
+  await revalidateTenantAdminLayout();
   return ok;
 }
 
@@ -115,7 +114,7 @@ const clampMonth = (m: unknown) => {
 };
 
 export async function saveFeeStructure(input: FeeInput): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   if (!input.classId) return fail("ক্লাস নির্বাচন করুন।");
   const cls = await db
     .collection(Collections.classes)
@@ -146,6 +145,6 @@ export async function saveFeeStructure(input: FeeInput): Promise<ActionResult> {
     },
     { upsert: true }
   );
-  revalidateAdmin();
+  await revalidateTenantAdminLayout();
   return ok;
 }

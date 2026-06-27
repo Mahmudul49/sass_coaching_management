@@ -23,7 +23,7 @@ import {
   parseStudentsExcel,
   type RawStudentRow,
 } from "@/lib/excel";
-import { importStudentsFromExcel, type ExcelStudentRow } from "@/app/admin/actions/students";
+import { importStudentsFromExcel, type ExcelStudentRow } from "@/app/[tenant]/admin/actions/students";
 import { toBnDigits } from "@/lib/format";
 import type { ClassRow, SectionRow } from "@/lib/admin/queries";
 

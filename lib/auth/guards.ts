@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { forbidden } from "@/lib/http";
 import { auth } from "@/auth";
-import { requireTenant, type PublicTenant } from "@/lib/tenant/server";
+import { requireTenant, getTenantSlug, type PublicTenant } from "@/lib/tenant/server";
 import { forTenant, type ScopedDb } from "@/lib/db/scoped";
 
 /**
@@ -10,10 +10,11 @@ import { forTenant, type ScopedDb } from "@/lib/db/scoped";
  *
  * These are the choke points that turn a valid login into authorised access:
  *   - requireSuperAdmin(): session must exist and be role 'superadmin'.
- *   - requireAdmin(): session must be role 'admin', the subdomain must resolve
- *     to a real tenant, AND session.tenantId must equal that tenant — otherwise
- *     403. This is what stops one center's admin from poking at another center's
- *     subdomain. Returns a `db` already scoped to the tenant.
+ *   - requireAdmin(): session must be role 'admin', the tenant slug must
+ *     resolve to a real tenant, AND session.tenantId must equal that tenant —
+ *     otherwise 403. This is what stops one center's admin from poking at
+ *     another center's tenant. Returns a `db` already scoped to the tenant.
+
  */
 
 export type AdminContext = {
@@ -24,6 +25,7 @@ export type AdminContext = {
   db: ScopedDb;
 };
 
+
 export async function requireSuperAdmin(): Promise<{ userId: string; name: string }> {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -31,10 +33,15 @@ export async function requireSuperAdmin(): Promise<{ userId: string; name: strin
   return { userId: session.user.id, name: session.user.name ?? "" };
 }
 
-export async function requireAdmin(): Promise<AdminContext> {
-  const tenant = await requireTenant(); // 404 if subdomain is unknown
+export async function requireAdminFromRequest(): Promise<AdminContext> {
+  return requireAdmin(await getTenantSlug());
+}
+
+export async function requireAdmin(tenantSlug: string): Promise<AdminContext> {
+  const tenant = await requireTenant(tenantSlug); // 404 if tenant slug is unknown
   const session = await auth();
-  if (!session?.user) redirect("/login");
+
+  if (!session?.user) redirect(`/${tenantSlug}/login`);
 
   // A super-admin has no business inside a tenant admin area, and an admin
   // bound to a different tenant must be blocked.

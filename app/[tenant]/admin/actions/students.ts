@@ -1,12 +1,12 @@
 "use server";
-import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireAdminFromRequest } from "@/lib/auth/guards";
 import {
   Collections,
   type ClassDoc,
   type SectionDoc,
 } from "@/lib/db/collections";
 import { toObjectId } from "@/lib/db/oid";
+import { revalidateTenantAdminLayout } from "@/lib/tenant/revalidate";
 
 export type ActionResult = { ok: boolean; error?: string };
 export type StudentInput = {
@@ -20,7 +20,7 @@ export type StudentInput = {
 const fail = (error: string): ActionResult => ({ ok: false, error });
 
 async function validateClassSection(
-  db: Awaited<ReturnType<typeof requireAdmin>>["db"],
+  db: Awaited<ReturnType<typeof requireAdminFromRequest>>["db"],
   classId: string,
   sectionId: string
 ): Promise<string | null> {
@@ -35,7 +35,7 @@ async function validateClassSection(
 }
 
 export async function createStudent(input: StudentInput): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const name = input.name?.trim();
   const roll = input.roll?.trim();
   const phone = input.phone?.trim();
@@ -54,12 +54,12 @@ export async function createStudent(input: StudentInput): Promise<ActionResult> 
     active: true,
     createdAt: new Date(),
   } as never);
-  revalidatePath("/admin", "layout");
+  await revalidateTenantAdminLayout();
   return { ok: true };
 }
 
 export async function updateStudent(id: string, input: StudentInput): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const _id = toObjectId(id);
   if (!_id) return fail("ভুল আইডি।");
   const name = input.name?.trim();
@@ -80,16 +80,16 @@ export async function updateStudent(id: string, input: StudentInput): Promise<Ac
       phone,
     },
   });
-  revalidatePath("/admin", "layout");
+  await revalidateTenantAdminLayout();
   return { ok: true };
 }
 
 export async function deleteStudent(id: string): Promise<ActionResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const _id = toObjectId(id);
   if (!_id) return fail("ভুল আইডি।");
   await db.collection(Collections.students).deleteOne({ _id } as never);
-  revalidatePath("/admin", "layout");
+  await revalidateTenantAdminLayout();
   return { ok: true };
 }
 
@@ -117,7 +117,7 @@ export type ImportResult = {
 export async function importStudentsFromExcel(
   rows: ExcelStudentRow[]
 ): Promise<ImportResult> {
-  const { db } = await requireAdmin();
+  const { db } = await requireAdminFromRequest();
   const empty = { inserted: 0, classesCreated: 0, sectionsCreated: 0 };
   if (!rows?.length) return { ok: false, ...empty, error: "কোনো সারি নেই।" };
 
@@ -181,6 +181,6 @@ export async function importStudentsFromExcel(
     return { ok: false, classesCreated, sectionsCreated, inserted: 0, error: "কোনো বৈধ সারি নেই।" };
 
   const res = await db.collection(Collections.students).insertMany(docs as never[]);
-  revalidatePath("/admin", "layout");
+  await revalidateTenantAdminLayout();
   return { ok: true, inserted: res.insertedCount, classesCreated, sectionsCreated };
 }

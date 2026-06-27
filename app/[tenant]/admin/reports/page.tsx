@@ -6,11 +6,14 @@ import DueReportClient from "@/components/admin/DueReportClient";
 import { currentMonth, currentYear } from "@/lib/format";
 
 export default async function ReportsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ tenant: string }>;
   searchParams: Promise<{ classId?: string; year?: string; month?: string; status?: string }>;
 }) {
-  const { db } = await requireAdmin();
+  const { tenant } = await params;
+  const { db } = await requireAdmin(tenant);
   const classes = await listClasses(db);
   const sp = await searchParams;
   const classId = sp.classId ?? "";

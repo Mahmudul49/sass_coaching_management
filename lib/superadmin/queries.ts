@@ -1,6 +1,12 @@
 import "server-only";
 import { getDb } from "@/lib/db/connect";
-import { Collections, type TenantDoc } from "@/lib/db/collections";
+import {
+  Collections,
+  type ClassDoc,
+  type SectionDoc,
+  type StudentDoc,
+  type TenantDoc,
+} from "@/lib/db/collections";
 
 /**
  * Super-admin-only queries. These intentionally span ALL tenants, so they use
@@ -65,4 +71,81 @@ export async function listTenants(): Promise<TenantRow[]> {
     studentCount: countMap.get(t._id.toString()) ?? 0,
     createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : "",
   }));
+}
+
+/** Cross-tenant student row for super-admin marketing / outreach. */
+export type MarketingStudentRow = {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  name: string;
+  roll: string;
+  phone: string;
+  className: string;
+  sectionName: string;
+  active: boolean;
+  createdAt: string;
+};
+
+export type MarketingStudentFilter = {
+  query?: string;
+  tenantId?: string;
+  activeOnly?: boolean;
+};
+
+const MARKETING_STUDENT_LIMIT = 1000;
+
+/** Search students across all tenants (super-admin marketing use). */
+export async function searchMarketingStudents(
+  filter: MarketingStudentFilter = {}
+): Promise<{ rows: MarketingStudentRow[]; total: number }> {
+  const db = await getDb();
+
+  const match: Record<string, unknown> = {};
+  if (filter.tenantId) match.tenantId = filter.tenantId;
+  if (filter.activeOnly !== false) match.active = true;
+
+  const q = filter.query?.trim();
+  if (q) {
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, "i");
+    match.$or = [{ name: re }, { phone: re }, { roll: re }];
+  }
+
+  const [students, total, tenants, classes, sections] = await Promise.all([
+    db
+      .collection<StudentDoc>(Collections.students)
+      .find(match)
+      .sort({ createdAt: -1 })
+      .limit(MARKETING_STUDENT_LIMIT)
+      .toArray(),
+    db.collection(Collections.students).countDocuments(match),
+    db.collection<TenantDoc>(Collections.tenants).find({}).toArray(),
+    db.collection<ClassDoc>(Collections.classes).find({}).toArray(),
+    db.collection<SectionDoc>(Collections.sections).find({}).toArray(),
+  ]);
+
+  const tenantMap = new Map(tenants.map((t) => [t._id.toString(), t]));
+  const classMap = new Map(classes.map((c) => [c._id.toString(), c.name]));
+  const sectionMap = new Map(sections.map((s) => [s._id.toString(), s.name]));
+
+  const rows: MarketingStudentRow[] = students.map((s) => {
+    const tenant = tenantMap.get(s.tenantId);
+    return {
+      id: s._id.toString(),
+      tenantId: s.tenantId,
+      tenantName: tenant?.name ?? "—",
+      tenantSlug: tenant?.slug ?? "",
+      name: s.name,
+      roll: s.roll,
+      phone: s.phone,
+      className: classMap.get(s.classId) ?? "—",
+      sectionName: sectionMap.get(s.sectionId) ?? "—",
+      active: s.active !== false,
+      createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : "",
+    };
+  });
+
+  return { rows, total };
 }

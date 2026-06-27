@@ -12,11 +12,9 @@ import { verifyPassword } from "@/lib/auth/password";
 /**
  * Auth.js / NextAuth v5 — Credentials provider keyed on PHONE + PASSWORD.
  *
- * Tenant context comes from the `slug` field the login form submits (it knows
- * its own subdomain). When `slug` is empty the request is on the root domain,
- * so we authenticate the single super-admin (tenantId null). Otherwise we
- * resolve the tenant by slug and look the admin up *within that tenant* — phone
- * is only unique per tenant, so the slug is required to disambiguate.
+ * Tenant context comes from the `slug` field the login form submits. When `slug`
+ * is empty the request is on the root domain (super-admin login). Otherwise we
+ * resolve the tenant by slug and look the admin up within that tenant.
  *
  * Note: runs in the Node runtime (route handler / server actions), never on the
  * edge, so the MongoDB driver is available here.

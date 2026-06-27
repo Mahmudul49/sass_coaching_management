@@ -8,11 +8,14 @@ import PaymentsClient from "@/components/admin/PaymentsClient";
 import { currentMonth, currentYear } from "@/lib/format";
 
 export default async function PaymentsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ tenant: string }>;
   searchParams: Promise<{ classId?: string; year?: string; month?: string }>;
 }) {
-  const { db, tenant } = await requireAdmin();
+  const { tenant: slug } = await params;
+  const { db, tenant } = await requireAdmin(slug);
   const classes = await listClasses(db);
 
   if (classes.length === 0) {

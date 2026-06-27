@@ -4,8 +4,9 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { listFees } from "@/lib/admin/queries";
 import FeesManager from "@/components/admin/FeesManager";
 
-export default async function FeesPage() {
-  const { db } = await requireAdmin();
+export default async function FeesPage({ params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params;
+  const { db } = await requireAdmin(tenant);
   const fees = await listFees(db);
   return (
     <Stack spacing={2}>

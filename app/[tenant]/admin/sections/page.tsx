@@ -4,8 +4,9 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { listClasses, listSections } from "@/lib/admin/queries";
 import SectionsManager from "@/components/admin/SectionsManager";
 
-export default async function SectionsPage() {
-  const { db } = await requireAdmin();
+export default async function SectionsPage({ params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params;
+  const { db } = await requireAdmin(tenant);
   const [classes, sections] = await Promise.all([listClasses(db), listSections(db)]);
   return (
     <Stack spacing={2}>

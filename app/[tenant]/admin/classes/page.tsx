@@ -4,8 +4,9 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { listClasses } from "@/lib/admin/queries";
 import ClassesManager from "@/components/admin/ClassesManager";
 
-export default async function ClassesPage() {
-  const { db } = await requireAdmin();
+export default async function ClassesPage({ params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params;
+  const { db } = await requireAdmin(tenant);
   const classes = await listClasses(db);
   return (
     <Stack spacing={2}>

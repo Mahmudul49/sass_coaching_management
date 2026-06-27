@@ -21,6 +21,7 @@ import { useToast } from "@/components/providers/ToastProvider";
 import { createTenant, setTenantActive } from "@/app/superadmin/actions";
 import type { TenantRow } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
+import { tenantSiteLabel, tenantSiteUrl } from "@/lib/tenant/paths";
 
 export default function TenantsClient({
   tenants,
@@ -33,8 +34,6 @@ export default function TenantsClient({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const protocol = rootDomain.includes("localhost") ? "http" : "https";
-
   const columns = useMemo<GridColDef<TenantRow>[]>(
     () => [
       { field: "name", headerName: "সেন্টার", flex: 1, minWidth: 150 },
@@ -42,14 +41,14 @@ export default function TenantsClient({
         field: "slug",
         headerName: "সাইট",
         flex: 1,
-        minWidth: 180,
+        minWidth: 220,
         renderCell: (p) => (
           <Link
-            href={`${protocol}://${p.row.slug}.${rootDomain}`}
+            href={tenantSiteUrl(p.row.slug, rootDomain)}
             target="_blank"
             rel="noopener"
           >
-            {p.row.slug}.{rootDomain}
+            {tenantSiteLabel(p.row.slug, rootDomain)}
           </Link>
         ),
       },
@@ -91,7 +90,7 @@ export default function TenantsClient({
         ),
       },
     ],
-    [pending, protocol, rootDomain]
+    [pending, rootDomain]
   );
 
   function toggle(row: TenantRow) {
@@ -205,12 +204,12 @@ function CreateTenantDialog({
             helperText="কমপক্ষে ৬ অক্ষর"
           />
           <TextField
-            label="সাবডোমেইন (Slug) *"
+            label="URL Slug *"
             value={form.slug}
             onChange={set("slug")}
             InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">.{rootDomain}</InputAdornment>
+              startAdornment: (
+                <InputAdornment position="start">{rootDomain}/</InputAdornment>
               ),
             }}
             helperText="শুধু ছোট হাতের অক্ষর, সংখ্যা ও hyphen"

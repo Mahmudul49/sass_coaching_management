@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import NextLink from "next/link";
+import { usePathname } from "next/navigation";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Box from "@mui/material/Box";
@@ -14,10 +15,13 @@ import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import CloseIcon from "@mui/icons-material/Close";
 import { toBnDigits } from "@/lib/format";
 import type { SetupStatus } from "@/lib/admin/queries";
+import { tenantAdminBaseFromPath } from "@/components/layout/tenantAdminBase";
 
 const STORAGE_KEY = "setup-checklist-dismissed";
 
 export default function SetupChecklist({ status }: { status: SetupStatus }) {
+  const pathname = usePathname();
+  const adminBase = tenantAdminBaseFromPath(pathname);
   const [dismissed, setDismissed] = useState(false);
 
   const steps = [
@@ -75,7 +79,7 @@ export default function SetupChecklist({ status }: { status: SetupStatus }) {
 
         {!status.complete && (
           <Box sx={{ mt: 2 }}>
-            <Button component={NextLink} href="/admin/setup">
+            <Button component={NextLink} href={`${adminBase}/setup`}>
               সেটআপ চালিয়ে যান
             </Button>
           </Box>

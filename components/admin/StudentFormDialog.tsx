@@ -10,7 +10,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import { useToast } from "@/components/providers/ToastProvider";
-import { createStudent, updateStudent } from "@/app/admin/actions/students";
+import { createStudent, updateStudent } from "@/app/[tenant]/admin/actions/students";
 import type { ClassRow, SectionRow, StudentRow } from "@/lib/admin/queries";
 
 export default function StudentFormDialog({

@@ -19,7 +19,7 @@ import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/providers/ToastProvider";
-import { createClass, updateClass, deleteClass } from "@/app/admin/actions/master";
+import { createClass, updateClass, deleteClass } from "@/app/[tenant]/admin/actions/master";
 import type { ClassRow } from "@/lib/admin/queries";
 import { toBnDigits } from "@/lib/format";
 

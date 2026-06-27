@@ -256,12 +256,9 @@ export async function buildPaymentRows(
       };
     }
 
-    // No saved payment: pre-fill from defaults, paid = total (auto-selected).
-    let total = 0;
+    // No saved payment: pre-fill fee amounts; paid defaults to 0 until entered manually.
     for (const col of template) {
-      const amt = defaults[col.key] ?? 0;
-      amounts[col.key] = amt;
-      total += amt;
+      amounts[col.key] = defaults[col.key] ?? 0;
     }
     return {
       id,
@@ -270,7 +267,7 @@ export async function buildPaymentRows(
       sectionName: sectionMap.get(s.sectionId) ?? "—",
       phone: s.phone,
       amounts,
-      paidAmount: total,
+      paidAmount: 0,
       status: "none",
       saved: false,
     };

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Stepper from "@mui/material/Stepper";
@@ -22,6 +22,7 @@ import type {
   StudentRow,
   SetupStatus,
 } from "@/lib/admin/queries";
+import { tenantAdminBaseFromPath } from "@/components/layout/tenantAdminBase";
 
 const STEPS = ["ক্লাস", "শাখা", "ফি স্ট্রাকচার", "ছাত্র"];
 
@@ -39,6 +40,8 @@ export default function SetupWizard({
   status: SetupStatus;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const adminBase = tenantAdminBaseFromPath(pathname);
   const [active, setActive] = useState(0);
 
   const stepDone = [status.hasClasses, status.hasSections, status.hasFees, status.hasStudents];
@@ -90,13 +93,13 @@ export default function SetupWizard({
             </Button>
             {active < STEPS.length - 1 ? (
               <Stack direction="row" spacing={1}>
-                <Button variant="text" color="inherit" onClick={() => router.push("/admin")}>
+                <Button variant="text" color="inherit" onClick={() => router.push(adminBase)}>
                   পরে করব
                 </Button>
                 <Button onClick={() => setActive((s) => s + 1)}>পরবর্তী</Button>
               </Stack>
             ) : (
-              <Button color="success" onClick={() => router.push("/admin")}>
+              <Button color="success" onClick={() => router.push(adminBase)}>
                 সম্পন্ন করুন
               </Button>
             )}

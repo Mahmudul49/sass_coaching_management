@@ -1,6 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireAdminFromRequest } from "@/lib/auth/guards";
 import {
   Collections,
   type StudentDoc,
@@ -11,6 +10,7 @@ import {
 import { toObjectId } from "@/lib/db/oid";
 import { sendSms } from "@/lib/sms";
 import { smsTemplates } from "@/lib/sms/templates";
+import { revalidateTenantAdminPage } from "@/lib/tenant/revalidate";
 
 export type SavePaymentInput = {
   studentId: string;
@@ -29,7 +29,7 @@ function computeStatus(total: number, paid: number): PaymentStatus {
 }
 
 export async function savePayment(input: SavePaymentInput): Promise<SaveResult> {
-  const { db, tenant } = await requireAdmin();
+  const { db, tenant } = await requireAdminFromRequest();
   if (!input.studentId || !input.classId) return { ok: false, error: "তথ্য অসম্পূর্ণ।" };
 
   const student = (await db
@@ -87,7 +87,7 @@ export async function savePayment(input: SavePaymentInput): Promise<SaveResult> 
     });
   }
 
-  revalidatePath("/admin/payments");
+  await revalidateTenantAdminPage("payments");
   return { ok: true, status };
 }
 
@@ -96,7 +96,7 @@ export async function resendPaymentSms(
   year: number,
   month: number
 ): Promise<SaveResult> {
-  const { db, tenant } = await requireAdmin();
+  const { db, tenant } = await requireAdminFromRequest();
   const [student, payment] = await Promise.all([
     db.collection<StudentDoc>(Collections.students).findOne({
       _id: toObjectId(studentId)!,

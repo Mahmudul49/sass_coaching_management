@@ -1,6 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth/guards";
+import { requireAdminFromRequest } from "@/lib/auth/guards";
 import {
   Collections,
   type StudentDoc,
@@ -10,6 +9,7 @@ import {
 } from "@/lib/db/collections";
 import { sendSmsBatch } from "@/lib/sms";
 import { smsTemplates } from "@/lib/sms/templates";
+import { revalidateTenantAdminPage } from "@/lib/tenant/revalidate";
 
 export type AttendanceInput = {
   classId: string;
@@ -24,7 +24,7 @@ async function persistAndNotify(
   input: AttendanceInput,
   resend: boolean
 ): Promise<SaveResult> {
-  const { db, tenant } = await requireAdmin();
+  const { db, tenant } = await requireAdminFromRequest();
   if (!input.classId) return { ok: false, error: "ক্লাস নির্বাচন করুন।" };
   if (!DATE_RE.test(input.date)) return { ok: false, error: "তারিখ সঠিক নয়।" };
 
@@ -85,7 +85,7 @@ async function persistAndNotify(
     smsSent = res.sent;
   }
 
-  revalidatePath("/admin/attendance");
+  await revalidateTenantAdminPage("attendance");
   return { ok: true, smsSent };
 }
 

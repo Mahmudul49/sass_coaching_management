@@ -16,7 +16,7 @@ import PrintIcon from "@mui/icons-material/Print";
 import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/providers/ToastProvider";
-import { savePayment } from "@/app/admin/actions/payments";
+import { savePayment } from "@/app/[tenant]/admin/actions/payments";
 import { printReceipt } from "@/lib/receipt";
 import type { ClassRow, PayColumn, PayRow } from "@/lib/admin/queries";
 import { BN_MONTHS, taka, yearOptions, toBnDigits } from "@/lib/format";
@@ -40,7 +40,7 @@ function flatten(rows: PayRow[], template: PayColumn[]): Row[] {
       roll: r.roll,
       sectionName: r.sectionName,
       phone: r.phone,
-      paidAmount: r.paidAmount,
+      paidAmount: Number(r.paidAmount) || 0,
       saved: r.saved,
     };
     for (const c of template) row[c.key] = r.amounts[c.key] ?? 0;
@@ -152,14 +152,14 @@ export default function PaymentsClient({
 
   const columns = useMemo<GridColDef<Row>[]>(() => {
     const base: GridColDef<Row>[] = [
-      { field: "roll", headerName: "রোল", width: 80 },
+      { field: "roll", headerName: "রোল", width: 70 },
       { field: "name", headerName: "নাম", flex: 1, minWidth: 130 },
-      { field: "sectionName", headerName: "শাখা", width: 90 },
+      { field: "sectionName", headerName: "শাখা", width: 50 },
     ];
     const compCols: GridColDef<Row>[] = template.map((c) => ({
       field: c.key,
       headerName: c.label,
-      width: 130,
+      width: 120,
       editable: true,
       type: "number",
       valueFormatter: (v: number) => taka(Number(v) || 0),
@@ -168,14 +168,14 @@ export default function PaymentsClient({
       {
         field: "total",
         headerName: "মোট",
-        width: 110,
+        width: 120,
         valueGetter: (_v, row) => rowTotal(row),
         valueFormatter: (v: number) => taka(Number(v) || 0),
       },
       {
         field: "paidAmount",
         headerName: "পরিশোধিত",
-        width: 120,
+        width: 100,
         editable: true,
         type: "number",
         valueFormatter: (v: number) => taka(Number(v) || 0),
@@ -195,7 +195,7 @@ export default function PaymentsClient({
       {
         field: "actions",
         headerName: "অ্যাকশন",
-        width: 110,
+        width: 100,
         sortable: false,
         filterable: false,
         renderCell: (p: GridRenderCellParams<Row>) => (

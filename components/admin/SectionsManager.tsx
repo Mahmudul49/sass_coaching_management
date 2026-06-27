@@ -20,7 +20,7 @@ import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/providers/ToastProvider";
-import { createSection, updateSection, deleteSection } from "@/app/admin/actions/master";
+import { createSection, updateSection, deleteSection } from "@/app/[tenant]/admin/actions/master";
 import type { ClassRow, SectionRow } from "@/lib/admin/queries";
 
 export default function SectionsManager({
