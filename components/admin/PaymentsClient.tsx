@@ -18,6 +18,11 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Avatar from "@mui/material/Avatar";
 import Divider from "@mui/material/Divider";
 import InputAdornment from "@mui/material/InputAdornment";
+import Collapse from "@mui/material/Collapse";
+import LinearProgress from "@mui/material/LinearProgress";
+import SearchIcon from "@mui/icons-material/Search";
+import TuneIcon from "@mui/icons-material/Tune";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
 import SaveIcon from "@mui/icons-material/Save";
 import PrintIcon from "@mui/icons-material/Print";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
@@ -88,6 +93,15 @@ export default function PaymentsClient({
   const toast = useToast();
   const [pending, start] = useTransition();
   const [rows, setRows] = useState<Row[]>(() => flatten(initialRows, template));
+  const [mobileQ, setMobileQ] = useState("");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
+
+  // Mobile-only filter (name/roll) for quick lookup in a long class list.
+  const mobileRows = mobileQ.trim()
+    ? rows.filter((r) => `${r.name} ${r.roll}`.toLowerCase().includes(mobileQ.trim().toLowerCase()))
+    : rows;
 
   function navigate(next: { classId?: string; year?: number; month?: number }) {
     const params = new URLSearchParams();
@@ -101,6 +115,24 @@ export default function PaymentsClient({
     (row: Row) => template.reduce((sum, c) => sum + (Number(row[c.key]) || 0), 0),
     [template]
   );
+
+  // Live progress summary across the class (for the mobile summary card).
+  const summary = rows.reduce(
+    (a, r) => {
+      const t = rowTotal(r);
+      const p = Number(r.paidAmount) || 0;
+      a.expected += t;
+      a.collected += p;
+      if (p <= 0) a.unpaid += 1;
+      else if (p >= t) a.paid += 1;
+      else a.partial += 1;
+      return a;
+    },
+    { expected: 0, collected: 0, paid: 0, partial: 0, unpaid: 0 }
+  );
+  const collectedPct = summary.expected > 0 ? Math.round((summary.collected / summary.expected) * 100) : 0;
+
+  const markAllFull = () => setRows((rs) => rs.map((r) => ({ ...r, paidAmount: rowTotal(r) })));
 
   const processRowUpdate = useCallback((updated: Row) => {
     setRows((rs) => rs.map((r) => (r.id === updated.id ? updated : r)));
@@ -298,9 +330,50 @@ export default function PaymentsClient({
         </Card>
       ) : (
         <>
-          {/* Mobile: one card per student — enter how much was paid */}
-          <Stack spacing={1.25} sx={{ display: { xs: "flex", md: "none" } }}>
-            {rows.map((row) => {
+          {/* Mobile: progress summary + quick search + student cards */}
+          <Box sx={{ display: { xs: "block", md: "none" } }}>
+            <Card sx={{ mb: 1.5 }}>
+              <CardContent sx={{ py: 1.5 }}>
+                <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    আদায় {taka(summary.collected)} / {taka(summary.expected)}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={700}>
+                    {toBnDigits(collectedPct)}%
+                  </Typography>
+                </Stack>
+                <LinearProgress variant="determinate" value={collectedPct} color="success" sx={{ height: 8, borderRadius: 4 }} />
+                <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" color="success" label={`পরিশোধিত ${toBnDigits(summary.paid)}`} />
+                  <Chip size="small" color="warning" label={`আংশিক ${toBnDigits(summary.partial)}`} />
+                  <Chip size="small" color="error" label={`বাকি ${toBnDigits(summary.unpaid)}`} />
+                </Stack>
+                <Button
+                  fullWidth
+                  size="small"
+                  variant="outlined"
+                  color="success"
+                  startIcon={<DoneAllIcon />}
+                  onClick={markAllFull}
+                  sx={{ mt: 1.25 }}
+                >
+                  সবাইকে সম্পূর্ণ আদায় ধরুন
+                </Button>
+              </CardContent>
+            </Card>
+
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="নাম বা রোল দিয়ে খুঁজুন..."
+              value={mobileQ}
+              onChange={(e) => setMobileQ(e.target.value)}
+              sx={{ mb: 1.5 }}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+            />
+
+            <Stack spacing={1.25}>
+            {mobileRows.map((row) => {
               const total = rowTotal(row);
               const paid = Number(row.paidAmount) || 0;
               return (
@@ -362,39 +435,49 @@ export default function PaymentsClient({
                       ))}
                     </Box>
 
-                    {/* Itemized fee breakdown — admin can override/waive each sector */}
-                    <Typography variant="caption" color="text.secondary" fontWeight={700}>
-                      ফি বিবরণ (সম্পাদনাযোগ্য)
-                    </Typography>
-                    <Stack spacing={0.75} sx={{ mt: 0.75, mb: 1 }} divider={<Divider flexItem />}>
-                      {template.map((c) => (
-                        <Stack key={c.key} direction="row" spacing={1} alignItems="center">
-                          <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
-                            {c.label}
-                          </Typography>
-                          <TextField
-                            type="number"
-                            size="small"
-                            value={Number(row[c.key]) || 0}
-                            onChange={(e) => setAmount(row.id, c.key, Number(e.target.value))}
-                            inputProps={{ inputMode: "numeric", min: 0, style: { textAlign: "right" } }}
-                            InputProps={{ startAdornment: <InputAdornment position="start">৳</InputAdornment> }}
-                            sx={{ width: 128 }}
-                          />
-                        </Stack>
-                      ))}
-                    </Stack>
+                    {/* Quick full-pay: one tap collects the full computed amount */}
+                    <Button
+                      fullWidth
+                      variant={total > 0 && paid >= total ? "contained" : "outlined"}
+                      color="success"
+                      startIcon={<DoneAllIcon />}
+                      onClick={() => setFullPaid(row, !(total > 0 && paid >= total))}
+                      sx={{ mb: 1 }}
+                    >
+                      {total > 0 && paid >= total ? "সম্পূর্ণ পরিশোধিত ✓" : "সম্পূর্ণ আদায়"}
+                    </Button>
 
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={total > 0 && paid >= total}
-                          onChange={(e) => setFullPaid(row, e.target.checked)}
-                          color="success"
-                        />
-                      }
-                      label="সম্পূর্ণ পরিশোধিত"
-                    />
+                    {/* Collapsible itemized breakdown — expand only to override a sector */}
+                    <Button
+                      fullWidth
+                      size="small"
+                      variant="text"
+                      startIcon={<TuneIcon />}
+                      onClick={() => toggleExpand(row.id)}
+                      sx={{ justifyContent: "flex-start", color: "text.secondary" }}
+                    >
+                      {expanded[row.id] ? "ফি বিবরণ লুকান" : "ফি বিবরণ সম্পাদনা"}
+                    </Button>
+                    <Collapse in={!!expanded[row.id]}>
+                      <Stack spacing={0.75} sx={{ mt: 0.5, mb: 1 }} divider={<Divider flexItem />}>
+                        {template.map((c) => (
+                          <Stack key={c.key} direction="row" spacing={1} alignItems="center">
+                            <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
+                              {c.label}
+                            </Typography>
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={Number(row[c.key]) || 0}
+                              onChange={(e) => setAmount(row.id, c.key, Number(e.target.value))}
+                              inputProps={{ inputMode: "numeric", min: 0, style: { textAlign: "right" } }}
+                              InputProps={{ startAdornment: <InputAdornment position="start">৳</InputAdornment> }}
+                              sx={{ width: 128 }}
+                            />
+                          </Stack>
+                        ))}
+                      </Stack>
+                    </Collapse>
                     <TextField
                       label="পরিশোধিত পরিমাণ"
                       type="number"
@@ -440,7 +523,8 @@ export default function PaymentsClient({
                 </Card>
               );
             })}
-          </Stack>
+            </Stack>
+          </Box>
 
           {/* Desktop: editable grid (scrolls within the card, never the page) */}
           <Card sx={{ p: { xs: 1, sm: 2 }, display: { xs: "none", md: "block" } }}>
