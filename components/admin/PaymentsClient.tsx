@@ -110,6 +110,10 @@ export default function PaymentsClient({
   const setRemarks = (id: string, value: string) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, remarks: value } : r)));
 
+  // Admin override of a single fee sector (mobile card). 0 = waive that sector.
+  const setAmount = (id: string, key: string, value: number) =>
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: Math.max(0, value) } : r)));
+
   function buildComponents(row: Row) {
     return template.map((c) => ({ type: c.type, label: c.label, amount: Number(row[c.key]) || 0 }));
   }
@@ -308,6 +312,35 @@ export default function PaymentsClient({
                       </Box>
                       {statusChip(total, paid)}
                     </Stack>
+
+                    {/* Itemized fee breakdown — admin can override/waive each sector */}
+                    <Box sx={{ mt: 1, p: 1, bgcolor: "action.hover", borderRadius: 2 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                        ফি বিবরণ
+                      </Typography>
+                      <Stack spacing={1} sx={{ mt: 0.75 }}>
+                        {template.map((c) => (
+                          <Stack key={c.key} direction="row" spacing={1} alignItems="center">
+                            <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
+                              {c.label}
+                            </Typography>
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={Number(row[c.key]) || 0}
+                              onChange={(e) => setAmount(row.id, c.key, Number(e.target.value))}
+                              inputProps={{ inputMode: "numeric", min: 0 }}
+                              sx={{ width: 110, bgcolor: "background.paper" }}
+                            />
+                          </Stack>
+                        ))}
+                        <Stack direction="row" justifyContent="space-between" sx={{ pt: 0.5 }}>
+                          <Typography variant="body2" fontWeight={700}>মোট</Typography>
+                          <Typography variant="body2" fontWeight={700}>{taka(total)}</Typography>
+                        </Stack>
+                      </Stack>
+                    </Box>
+
                     <FormControlLabel
                       sx={{ mt: 0.5 }}
                       control={
