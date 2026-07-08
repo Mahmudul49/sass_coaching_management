@@ -15,6 +15,9 @@ import Tooltip from "@mui/material/Tooltip";
 import IconButton from "@mui/material/IconButton";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import Avatar from "@mui/material/Avatar";
+import Divider from "@mui/material/Divider";
+import InputAdornment from "@mui/material/InputAdornment";
 import SaveIcon from "@mui/icons-material/Save";
 import PrintIcon from "@mui/icons-material/Print";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
@@ -301,80 +304,107 @@ export default function PaymentsClient({
               const total = rowTotal(row);
               const paid = Number(row.paidAmount) || 0;
               return (
-                <Card key={row.id} variant="outlined" sx={{ borderRadius: 3 }}>
-                  <CardContent sx={{ p: 1.75, "&:last-child": { pb: 1.75 } }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="subtitle1" fontWeight={700} noWrap>{row.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          রোল {toBnDigits(row.roll)} · {row.sectionName} · মোট {taka(total)}
-                        </Typography>
-                      </Box>
-                      {statusChip(total, paid)}
-                    </Stack>
-
-                    {/* Itemized fee breakdown — admin can override/waive each sector */}
-                    <Box sx={{ mt: 1, p: 1, bgcolor: "action.hover", borderRadius: 2 }}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={700}>
-                        ফি বিবরণ
+                <Card
+                  key={row.id}
+                  sx={{ borderRadius: 3, overflow: "hidden", boxShadow: "0 2px 12px -6px rgba(18,36,31,0.25)" }}
+                >
+                  {/* Header strip */}
+                  <Box
+                    sx={{
+                      px: 1.75,
+                      py: 1.25,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1.25,
+                      bgcolor: "primary.main",
+                      color: "#fff",
+                    }}
+                  >
+                    <Avatar sx={{ bgcolor: "rgba(255,255,255,0.22)", color: "#fff", fontWeight: 700, width: 40, height: 40 }}>
+                      {row.name?.trim()?.[0] ?? "?"}
+                    </Avatar>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography fontWeight={700} noWrap>{row.name}</Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                        রোল {toBnDigits(row.roll)} · শাখা {row.sectionName}
                       </Typography>
-                      <Stack spacing={1} sx={{ mt: 0.75 }}>
-                        {template.map((c) => (
-                          <Stack key={c.key} direction="row" spacing={1} alignItems="center">
-                            <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
-                              {c.label}
-                            </Typography>
-                            <TextField
-                              type="number"
-                              size="small"
-                              value={Number(row[c.key]) || 0}
-                              onChange={(e) => setAmount(row.id, c.key, Number(e.target.value))}
-                              inputProps={{ inputMode: "numeric", min: 0 }}
-                              sx={{ width: 110, bgcolor: "background.paper" }}
-                            />
-                          </Stack>
-                        ))}
-                        <Stack direction="row" justifyContent="space-between" sx={{ pt: 0.5 }}>
-                          <Typography variant="body2" fontWeight={700}>মোট</Typography>
-                          <Typography variant="body2" fontWeight={700}>{taka(total)}</Typography>
-                        </Stack>
-                      </Stack>
+                    </Box>
+                    {statusChip(total, paid)}
+                  </Box>
+
+                  <CardContent sx={{ p: 1.75, "&:last-child": { pb: 1.75 } }}>
+                    {/* Summary: total / paid / due */}
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr 1fr",
+                        textAlign: "center",
+                        borderRadius: 2,
+                        overflow: "hidden",
+                        border: "1px solid",
+                        borderColor: "divider",
+                        mb: 1.5,
+                      }}
+                    >
+                      {[
+                        { l: "মোট", v: taka(total), c: "text.primary" },
+                        { l: "পরিশোধিত", v: taka(paid), c: "success.main" },
+                        { l: "বাকি", v: taka(Math.max(0, total - paid)), c: total - paid > 0 ? "error.main" : "text.secondary" },
+                      ].map((s, i) => (
+                        <Box key={s.l} sx={{ py: 1, borderLeft: i ? "1px solid" : 0, borderColor: "divider" }}>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {s.l}
+                          </Typography>
+                          <Typography fontWeight={800} sx={{ color: s.c, fontSize: "0.95rem" }} noWrap>
+                            {s.v}
+                          </Typography>
+                        </Box>
+                      ))}
                     </Box>
 
+                    {/* Itemized fee breakdown — admin can override/waive each sector */}
+                    <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                      ফি বিবরণ (সম্পাদনাযোগ্য)
+                    </Typography>
+                    <Stack spacing={0.75} sx={{ mt: 0.75, mb: 1 }} divider={<Divider flexItem />}>
+                      {template.map((c) => (
+                        <Stack key={c.key} direction="row" spacing={1} alignItems="center">
+                          <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
+                            {c.label}
+                          </Typography>
+                          <TextField
+                            type="number"
+                            size="small"
+                            value={Number(row[c.key]) || 0}
+                            onChange={(e) => setAmount(row.id, c.key, Number(e.target.value))}
+                            inputProps={{ inputMode: "numeric", min: 0, style: { textAlign: "right" } }}
+                            InputProps={{ startAdornment: <InputAdornment position="start">৳</InputAdornment> }}
+                            sx={{ width: 128 }}
+                          />
+                        </Stack>
+                      ))}
+                    </Stack>
+
                     <FormControlLabel
-                      sx={{ mt: 0.5 }}
                       control={
                         <Checkbox
-                          size="small"
                           checked={total > 0 && paid >= total}
                           onChange={(e) => setFullPaid(row, e.target.checked)}
+                          color="success"
                         />
                       }
                       label="সম্পূর্ণ পরিশোধিত"
                     />
-                    <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} alignItems="center">
-                      <TextField
-                        label="পরিশোধিত"
-                        type="number"
-                        size="small"
-                        value={row.paidAmount}
-                        onChange={(e) => setPaid(row.id, Number(e.target.value))}
-                        inputProps={{ inputMode: "numeric", min: 0 }}
-                        sx={{ maxWidth: 130 }}
-                      />
-                      <Box sx={{ flex: 1 }} />
-                      <Tooltip title="রসিদ">
-                        <IconButton onClick={() => receipt(row)}><PrintIcon /></IconButton>
-                      </Tooltip>
-                      <Tooltip title="WhatsApp">
-                        <IconButton sx={{ color: "#25D366" }} onClick={() => whatsapp(row)}>
-                          <WhatsAppIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Button startIcon={<SaveIcon />} onClick={() => saveRow(row)} disabled={pending}>
-                        সেভ
-                      </Button>
-                    </Stack>
+                    <TextField
+                      label="পরিশোধিত পরিমাণ"
+                      type="number"
+                      fullWidth
+                      value={row.paidAmount}
+                      onChange={(e) => setPaid(row.id, Number(e.target.value))}
+                      inputProps={{ inputMode: "numeric", min: 0 }}
+                      InputProps={{ startAdornment: <InputAdornment position="start">৳</InputAdornment> }}
+                      sx={{ mt: 0.5 }}
+                    />
                     <TextField
                       label="মন্তব্য / অগ্রগতি (ঐচ্ছিক)"
                       size="small"
@@ -382,8 +412,30 @@ export default function PaymentsClient({
                       multiline
                       value={row.remarks}
                       onChange={(e) => setRemarks(row.id, e.target.value)}
-                      sx={{ mt: 1.5 }}
+                      sx={{ mt: 1.25 }}
                     />
+
+                    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} alignItems="center">
+                      <Button
+                        fullWidth
+                        size="large"
+                        startIcon={<SaveIcon />}
+                        onClick={() => saveRow(row)}
+                        disabled={pending}
+                      >
+                        সেভ করুন
+                      </Button>
+                      <Tooltip title="রসিদ">
+                        <IconButton color="primary" onClick={() => receipt(row)} sx={{ border: "1px solid", borderColor: "divider" }}>
+                          <PrintIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="WhatsApp">
+                        <IconButton onClick={() => whatsapp(row)} sx={{ color: "#25D366", border: "1px solid", borderColor: "divider" }}>
+                          <WhatsAppIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
                   </CardContent>
                 </Card>
               );
