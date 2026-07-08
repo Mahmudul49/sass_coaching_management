@@ -1,5 +1,5 @@
 "use client";
-import { createTheme } from "@mui/material/styles";
+import { createTheme, responsiveFontSizes } from "@mui/material/styles";
 
 /**
  * "Warm scholarly" theme — a deep teal-emerald (trust, learning) paired with a
@@ -8,7 +8,7 @@ import { createTheme } from "@mui/material/styles";
  * on Android phones: large touch targets, soft rounded cards, subtle shadows,
  * and Hind Siliguri (loaded in app/layout) for clean Bengali conjuncts.
  */
-const theme = createTheme({
+const baseTheme = createTheme({
   palette: {
     mode: "light",
     primary: { main: "#0F7A6B", dark: "#0A5A4E", light: "#3FA595", contrastText: "#ffffff" },
@@ -60,5 +60,8 @@ const theme = createTheme({
     MuiChip: { styleOverrides: { root: { fontWeight: 600 } } },
   },
 });
+
+// Scale heading/body font sizes down on small screens (mobile-first legibility).
+const theme = responsiveFontSizes(baseTheme, { factor: 2.2 });
 
 export default theme;
