@@ -7,10 +7,15 @@ import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Chip from "@mui/material/Chip";
+import Box from "@mui/material/Box";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import AddIcon from "@mui/icons-material/Add";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import DownloadIcon from "@mui/icons-material/Download";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import BlockIcon from "@mui/icons-material/Block";
@@ -26,6 +31,8 @@ import { useToast } from "@/components/providers/ToastProvider";
 import { deleteStudent, setStudentActive } from "@/app/[tenant]/admin/actions/students";
 import type { ClassRow, SectionRow, StudentRow } from "@/lib/admin/queries";
 import { toBnDigits } from "@/lib/format";
+import { exportToExcel } from "@/lib/excel";
+import { printReportTable } from "@/lib/print";
 
 export default function StudentsManager({
   students,
@@ -45,13 +52,57 @@ export default function StudentsManager({
   const [toDelete, setToDelete] = useState<StudentRow | null>(null);
   const [pending, start] = useTransition();
   const [view, setView] = useState<"active" | "inactive" | "all">("active");
+  const [classFilter, setClassFilter] = useState("");
 
   const noMaster = classes.length === 0 || sections.length === 0;
 
-  const shown = students.filter((s) =>
-    view === "all" ? true : view === "active" ? s.active : !s.active
+  const shown = students.filter(
+    (s) =>
+      (view === "all" ? true : view === "active" ? s.active : !s.active) &&
+      (classFilter ? s.classId === classFilter : true)
   );
   const inactiveCount = students.filter((s) => !s.active).length;
+
+  // Active student count per class (for the per-class summary chips).
+  const activeByClass = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of students) if (s.active) m.set(s.classId, (m.get(s.classId) ?? 0) + 1);
+    return m;
+  }, [students]);
+
+  function exportExcel() {
+    exportToExcel(
+      "students",
+      shown.map((s) => ({
+        Roll: s.roll,
+        Name: s.name,
+        Class: s.className,
+        Section: s.sectionName,
+        Phone: s.phone,
+        Status: s.active ? "Active" : "Inactive",
+      })),
+      "Students"
+    );
+  }
+
+  function exportPdf() {
+    const clsLabel = classFilter ? classes.find((c) => c.id === classFilter)?.name : "সব ক্লাস";
+    printReportTable({
+      title: "শিক্ষার্থী তালিকা",
+      subtitle: `ক্লাস: ${clsLabel} · ${view === "active" ? "সক্রিয়" : view === "inactive" ? "নিষ্ক্রিয়" : "সব"}`,
+      meta: [`মোট: ${toBnDigits(shown.length)} জন`],
+      head: ["রোল", "নাম", "ক্লাস", "শাখা", "ফোন", "অবস্থা"],
+      rows: shown.map((s) => [
+        toBnDigits(s.roll),
+        s.name,
+        s.className,
+        s.sectionName,
+        s.phone || "—",
+        s.active ? "সক্রিয়" : "নিষ্ক্রিয়",
+      ]),
+      numericFrom: 6,
+    });
+  }
 
   function toggleActive(row: StudentRow) {
     start(async () => {
@@ -184,7 +235,7 @@ export default function StudentsManager({
             onClick={() => setBulkOpen(true)}
             sx={{ flex: { xs: 1, sm: "initial" } }}
           >
-            Excel
+            Excel ইম্পোর্ট
           </Button>
           <Button
             startIcon={<AddIcon />}
@@ -213,17 +264,57 @@ export default function StudentsManager({
         />
       ) : (
         <>
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={view}
-            onChange={(_e, v) => v && setView(v)}
+          {/* Per-class active student counts */}
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+            {classes.map((c) => (
+              <Chip
+                key={c.id}
+                size="small"
+                variant={classFilter === c.id ? "filled" : "outlined"}
+                color={classFilter === c.id ? "primary" : "default"}
+                onClick={() => setClassFilter(classFilter === c.id ? "" : c.id)}
+                label={`${c.name}: ${toBnDigits(activeByClass.get(c.id) ?? 0)}`}
+              />
+            ))}
+          </Stack>
+
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.5}
+            alignItems={{ sm: "center" }}
             sx={{ mb: 1.5 }}
+            useFlexGap
+            flexWrap="wrap"
           >
-            <ToggleButton value="active">সক্রিয় ({toBnDigits(students.length - inactiveCount)})</ToggleButton>
-            <ToggleButton value="inactive">নিষ্ক্রিয় ({toBnDigits(inactiveCount)})</ToggleButton>
-            <ToggleButton value="all">সব ({toBnDigits(students.length)})</ToggleButton>
-          </ToggleButtonGroup>
+            <ToggleButtonGroup size="small" exclusive value={view} onChange={(_e, v) => v && setView(v)}>
+              <ToggleButton value="active">সক্রিয় ({toBnDigits(students.length - inactiveCount)})</ToggleButton>
+              <ToggleButton value="inactive">নিষ্ক্রিয় ({toBnDigits(inactiveCount)})</ToggleButton>
+              <ToggleButton value="all">সব ({toBnDigits(students.length)})</ToggleButton>
+            </ToggleButtonGroup>
+            <TextField
+              select
+              size="small"
+              label="ক্লাস"
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              sx={{ minWidth: 150 }}
+            >
+              <MenuItem value="">সব ক্লাস</MenuItem>
+              {classes.map((c) => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <Box sx={{ flex: 1 }} />
+            <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={exportExcel} disabled={shown.length === 0}>
+              Excel
+            </Button>
+            <Button size="small" variant="outlined" startIcon={<PictureAsPdfIcon />} onClick={exportPdf} disabled={shown.length === 0}>
+              PDF
+            </Button>
+          </Stack>
+
           <ResponsiveTable
             rows={shown}
             columns={columns}

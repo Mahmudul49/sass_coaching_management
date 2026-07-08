@@ -13,11 +13,13 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Checkbox from "@mui/material/Checkbox";
 import SearchIcon from "@mui/icons-material/Search";
 import DownloadIcon from "@mui/icons-material/Download";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import { type GridColDef } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import DataCard from "@/components/ui/DataCard";
 import { exportToExcel } from "@/lib/excel";
+import { printReportTable } from "@/lib/print";
 import type { MarketingStudentRow, TenantRow } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
 
@@ -41,6 +43,17 @@ export default function StudentsMarketingClient({
   const [search, setSearch] = useState(query);
   const [center, setCenter] = useState(tenantId);
   const [active, setActive] = useState(activeOnly);
+  const [classFilter, setClassFilter] = useState("");
+
+  // Distinct class names present in the current result set (client-side filter).
+  const classNames = useMemo(
+    () => [...new Set(rows.map((r) => r.className).filter((c) => c && c !== "—"))].sort(),
+    [rows]
+  );
+  const shown = useMemo(
+    () => (classFilter ? rows.filter((r) => r.className === classFilter) : rows),
+    [rows, classFilter]
+  );
 
   function applyFilters() {
     const params = new URLSearchParams();
@@ -54,7 +67,7 @@ export default function StudentsMarketingClient({
   function exportRows() {
     exportToExcel(
       "marketing-students.xlsx",
-      rows.map((r) => ({
+      shown.map((r) => ({
         Center: r.tenantName,
         Name: r.name,
         Roll: r.roll,
@@ -65,6 +78,27 @@ export default function StudentsMarketingClient({
       })),
       "Students"
     );
+  }
+
+  function exportPdf() {
+    printReportTable({
+      title: "মার্কেটিং — শিক্ষার্থী তথ্য",
+      subtitle: `${center ? tenants.find((t) => t.id === center)?.name : "সব সেন্টার"}${
+        classFilter ? " · ক্লাস: " + classFilter : ""
+      }`,
+      meta: [`মোট: ${toBnDigits(shown.length)} জন`],
+      head: ["সেন্টার", "নাম", "রোল", "ফোন", "ক্লাস", "শাখা", "অবস্থা"],
+      rows: shown.map((r) => [
+        r.tenantName,
+        r.name,
+        toBnDigits(r.roll),
+        r.phone || "—",
+        r.className,
+        r.sectionName,
+        r.active ? "সক্রিয়" : "নিষ্ক্রিয়",
+      ]),
+      numericFrom: 7,
+    });
   }
 
   const columns = useMemo<GridColDef<MarketingStudentRow>[]>(
@@ -122,6 +156,20 @@ export default function StudentsMarketingClient({
                 </MenuItem>
               ))}
             </TextField>
+            <TextField
+              select
+              label="ক্লাস"
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              sx={{ minWidth: 150 }}
+            >
+              <MenuItem value="">সব ক্লাস</MenuItem>
+              {classNames.map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </TextField>
             <FormControlLabel
               control={<Checkbox checked={active} onChange={(e) => setActive(e.target.checked)} />}
               label="শুধু সক্রিয়"
@@ -143,29 +191,30 @@ export default function StudentsMarketingClient({
           gap={1}
         >
           <Typography variant="h6">
-            ফলাফল ({toBnDigits(rows.length)}
+            ফলাফল ({toBnDigits(shown.length)}
             {truncated ? ` / ${toBnDigits(total)}` : ""})
           </Typography>
-          <Button
-            startIcon={<DownloadIcon />}
-            onClick={exportRows}
-            disabled={rows.length === 0}
-            variant="outlined"
-          >
-            Excel এক্সপোর্ট
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button startIcon={<DownloadIcon />} onClick={exportRows} disabled={shown.length === 0} variant="outlined">
+              Excel
+            </Button>
+            <Button startIcon={<PictureAsPdfIcon />} onClick={exportPdf} disabled={shown.length === 0} variant="outlined">
+              PDF
+            </Button>
+          </Stack>
         </Stack>
 
-        {rows.length === 0 ? (
+        {shown.length === 0 ? (
           <EmptyState
             title="কোনো শিক্ষার্থী পাওয়া যায়নি"
-            description="অন্য কীওয়ার্ড বা সেন্টার দিয়ে খুঁজুন।"
+            description="অন্য কীওয়ার্ড, সেন্টার বা ক্লাস দিয়ে খুঁজুন।"
           />
         ) : (
           <ResponsiveTable
-            rows={rows}
+            rows={shown}
             columns={columns}
             gridMinWidth={780}
+            filterText={(r) => `${r.name} ${r.roll} ${r.phone} ${r.className} ${r.tenantName}`}
             renderCard={(r) => (
               <DataCard
                 title={r.name}
