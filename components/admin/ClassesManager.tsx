@@ -1,23 +1,21 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import Card from "@mui/material/Card";
-import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import Alert from "@mui/material/Alert";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { type GridColDef } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ResponsiveDialog from "@/components/ui/ResponsiveDialog";
+import ResponsiveTable from "@/components/ui/ResponsiveTable";
+import DataCard from "@/components/ui/DataCard";
 import { useToast } from "@/components/providers/ToastProvider";
 import { createClass, updateClass, deleteClass } from "@/app/[tenant]/admin/actions/master";
 import type { ClassRow } from "@/lib/admin/queries";
@@ -71,12 +69,7 @@ export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
 
   const columns = useMemo<GridColDef<ClassRow>[]>(
     () => [
-      {
-        field: "order",
-        headerName: "ক্রম",
-        width: 90,
-        valueFormatter: (v: number) => toBnDigits(v ?? 0),
-      },
+      { field: "order", headerName: "ক্রম", width: 90, valueFormatter: (v: number) => toBnDigits(v ?? 0) },
       { field: "name", headerName: "ক্লাসের নাম", flex: 1, minWidth: 160 },
       {
         field: "actions",
@@ -98,6 +91,17 @@ export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
     []
   );
 
+  const renderCard = (c: ClassRow) => (
+    <DataCard
+      title={c.name}
+      subtitle={`ক্রম: ${toBnDigits(c.order)}`}
+      actions={[
+        { label: "সম্পাদনা", icon: <EditIcon fontSize="small" />, onClick: () => openEdit(c) },
+        { label: "মুছুন", icon: <DeleteIcon fontSize="small" />, danger: true, onClick: () => setToDelete(c) },
+      ]}
+    />
+  );
+
   return (
     <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
@@ -115,47 +119,50 @@ export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
           onAction={openCreate}
         />
       ) : (
-        <Box sx={{ width: "100%" }}>
-          <DataGrid
-            autoHeight
-            rows={classes}
-            columns={columns}
-            disableRowSelectionOnClick
-            hideFooter={classes.length <= 100}
-            sx={{ border: 0 }}
-          />
-        </Box>
+        <ResponsiveTable
+          rows={classes}
+          columns={columns}
+          renderCard={renderCard}
+          filterText={(c) => c.name}
+          gridMinWidth={360}
+        />
       )}
 
-      <Dialog open={open} onClose={pending ? undefined : () => setOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{editing ? "ক্লাস সম্পাদনা" : "নতুন ক্লাস"}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            {error && <Alert severity="error">{error}</Alert>}
-            <TextField
-              label="ক্লাসের নাম *"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              autoFocus
-            />
-            <TextField
-              label="ক্রম"
-              type="number"
-              value={form.order}
-              onChange={(e) => setForm((f) => ({ ...f, order: e.target.value }))}
-              helperText="কম সংখ্যা আগে দেখাবে"
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button variant="text" color="inherit" onClick={() => setOpen(false)} disabled={pending}>
-            বাতিল
-          </Button>
-          <Button onClick={submit} disabled={pending}>
-            সংরক্ষণ
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ResponsiveDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        disableClose={pending}
+        title={editing ? "ক্লাস সম্পাদনা" : "নতুন ক্লাস"}
+        maxWidth="xs"
+        actions={
+          <>
+            <Button variant="text" color="inherit" onClick={() => setOpen(false)} disabled={pending}>
+              বাতিল
+            </Button>
+            <Button onClick={submit} disabled={pending}>
+              সংরক্ষণ
+            </Button>
+          </>
+        }
+      >
+        <Stack spacing={2.5}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <TextField
+            label="ক্লাসের নাম *"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            autoFocus
+          />
+          <TextField
+            label="ক্রম"
+            type="number"
+            value={form.order}
+            onChange={(e) => setForm((f) => ({ ...f, order: e.target.value }))}
+            inputProps={{ inputMode: "numeric" }}
+            helperText="কম সংখ্যা আগে দেখাবে"
+          />
+        </Stack>
+      </ResponsiveDialog>
 
       <ConfirmDialog
         open={!!toDelete}

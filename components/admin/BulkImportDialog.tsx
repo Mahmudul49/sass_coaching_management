@@ -1,9 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
+import ResponsiveDialog from "@/components/ui/ResponsiveDialog";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
@@ -138,10 +135,24 @@ export default function BulkImportDialog({
   }
 
   return (
-    <Dialog open={open} onClose={pending ? undefined : handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>Excel দিয়ে শিক্ষার্থী যোগ করুন</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
+    <ResponsiveDialog
+      open={open}
+      onClose={handleClose}
+      disableClose={pending}
+      title="Excel দিয়ে শিক্ষার্থী যোগ করুন"
+      maxWidth="md"
+      actions={
+        <>
+          <Button variant="text" color="inherit" onClick={handleClose} disabled={pending}>
+            বাতিল
+          </Button>
+          <Button onClick={confirmImport} disabled={pending || validRows.length === 0}>
+            {pending ? "ইম্পোর্ট হচ্ছে..." : `${toBnDigits(validRows.length)} জন ইম্পোর্ট করুন`}
+          </Button>
+        </>
+      }
+    >
+        <Stack spacing={2}>
           <Alert severity="info">
             কলাম: <b>Name, Roll, Phone, Class</b> এবং <b>Section (ঐচ্ছিক)</b>। কোনো
             ক্লাস বা শাখা আগে থেকে না থাকলে ইম্পোর্টের সময় <b>স্বয়ংক্রিয়ভাবে তৈরি</b> হয়ে যাবে।
@@ -218,15 +229,6 @@ export default function BulkImportDialog({
             </>
           )}
         </Stack>
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button variant="text" color="inherit" onClick={handleClose} disabled={pending}>
-          বাতিল
-        </Button>
-        <Button onClick={confirmImport} disabled={pending || validRows.length === 0}>
-          {pending ? "ইম্পোর্ট হচ্ছে..." : `${toBnDigits(validRows.length)} জন ইম্পোর্ট করুন`}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 }

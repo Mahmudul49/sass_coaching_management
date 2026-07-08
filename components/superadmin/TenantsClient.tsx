@@ -7,10 +7,7 @@ import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
 import Link from "@mui/material/Link";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
+import ResponsiveDialog from "@/components/ui/ResponsiveDialog";
 import TextField from "@mui/material/TextField";
 import Alert from "@mui/material/Alert";
 import InputAdornment from "@mui/material/InputAdornment";
@@ -248,10 +245,23 @@ function EditTenantDialog({
   }
 
   return (
-    <Dialog open={!!tenant} onClose={pending ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>সেন্টার সম্পাদনা</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
+    <ResponsiveDialog
+      open={!!tenant}
+      onClose={onClose}
+      disableClose={pending}
+      title="সেন্টার সম্পাদনা"
+      actions={
+        <>
+          <Button variant="text" color="inherit" onClick={onClose} disabled={pending}>
+            বাতিল
+          </Button>
+          <Button onClick={submit} disabled={pending}>
+            {pending ? "সংরক্ষণ..." : "সংরক্ষণ"}
+          </Button>
+        </>
+      }
+    >
+        <Stack spacing={2.5}>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField label="সেন্টার *" value={form.name} onChange={set("name")} />
           <TextField
@@ -277,16 +287,7 @@ function EditTenantDialog({
             autoComplete="new-password"
           />
         </Stack>
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button variant="text" color="inherit" onClick={onClose} disabled={pending}>
-          বাতিল
-        </Button>
-        <Button onClick={submit} disabled={pending}>
-          {pending ? "সংরক্ষণ..." : "সংরক্ষণ"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 }
 
@@ -328,10 +329,23 @@ function CreateTenantDialog({
   }
 
   return (
-    <Dialog open={open} onClose={pending ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>নতুন সেন্টার / অ্যাডমিন</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
+    <ResponsiveDialog
+      open={open}
+      onClose={onClose}
+      disableClose={pending}
+      title="নতুন সেন্টার / অ্যাডমিন"
+      actions={
+        <>
+          <Button color="inherit" variant="text" onClick={onClose} disabled={pending}>
+            বাতিল
+          </Button>
+          <Button onClick={submit} disabled={pending}>
+            {pending ? "তৈরি হচ্ছে..." : "তৈরি করুন"}
+          </Button>
+        </>
+      }
+    >
+        <Stack spacing={2.5}>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField label="সেন্টারের নাম *" value={form.name} onChange={set("name")} />
           <TextField label="অ্যাডমিনের নাম *" value={form.adminName} onChange={set("adminName")} />
@@ -360,15 +374,6 @@ function CreateTenantDialog({
             helperText="শুধু ছোট হাতের অক্ষর, সংখ্যা ও hyphen"
           />
         </Stack>
-      </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button color="inherit" variant="text" onClick={onClose} disabled={pending}>
-          বাতিল
-        </Button>
-        <Button onClick={submit} disabled={pending}>
-          {pending ? "তৈরি হচ্ছে..." : "তৈরি করুন"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 }

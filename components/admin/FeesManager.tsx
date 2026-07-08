@@ -5,10 +5,7 @@ import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
+import ResponsiveDialog from "@/components/ui/ResponsiveDialog";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import IconButton from "@mui/material/IconButton";
@@ -171,16 +168,24 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
         </Card>
       ))}
 
-      <Dialog
+      <ResponsiveDialog
         open={!!editing}
-        onClose={pending ? undefined : () => setEditing(null)}
-        maxWidth="sm"
-        fullWidth
+        onClose={() => setEditing(null)}
+        disableClose={pending}
+        title={`ফি স্ট্রাকচার — ${editing?.className ?? ""}`}
+        actions={
+          <>
+            <Button variant="text" color="inherit" onClick={() => setEditing(null)} disabled={pending}>
+              বাতিল
+            </Button>
+            <Button onClick={save} disabled={pending}>
+              {pending ? "সংরক্ষণ হচ্ছে..." : "সংরক্ষণ"}
+            </Button>
+          </>
+        }
       >
-        <DialogTitle>ফি স্ট্রাকচার — {editing?.className}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <Divider>ভর্তি ফি</Divider>
+        <Stack spacing={2}>
+          <Divider>ভর্তি ফি</Divider>
             <Stack direction="row" spacing={2}>
               <TextField
                 label="টাকা"
@@ -302,16 +307,7 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
               </Button>
             </Box>
           </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button variant="text" color="inherit" onClick={() => setEditing(null)} disabled={pending}>
-            বাতিল
-          </Button>
-          <Button onClick={save} disabled={pending}>
-            {pending ? "সংরক্ষণ হচ্ছে..." : "সংরক্ষণ"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      </ResponsiveDialog>
     </Stack>
   );
 }

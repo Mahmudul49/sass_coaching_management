@@ -1,24 +1,22 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import Card from "@mui/material/Card";
-import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import Alert from "@mui/material/Alert";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { type GridColDef } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import ResponsiveDialog from "@/components/ui/ResponsiveDialog";
+import ResponsiveTable from "@/components/ui/ResponsiveTable";
+import DataCard from "@/components/ui/DataCard";
 import { useToast } from "@/components/providers/ToastProvider";
 import { createSection, updateSection, deleteSection } from "@/app/[tenant]/admin/actions/master";
 import type { ClassRow, SectionRow } from "@/lib/admin/queries";
@@ -98,6 +96,17 @@ export default function SectionsManager({
     []
   );
 
+  const renderCard = (s: SectionRow) => (
+    <DataCard
+      title={`${s.className} — ${s.name}`}
+      subtitle="শাখা"
+      actions={[
+        { label: "সম্পাদনা", icon: <EditIcon fontSize="small" />, onClick: () => openEdit(s) },
+        { label: "মুছুন", icon: <DeleteIcon fontSize="small" />, danger: true, onClick: () => setToDelete(s) },
+      ]}
+    />
+  );
+
   if (classes.length === 0) {
     return (
       <Card sx={{ p: 2 }}>
@@ -126,53 +135,55 @@ export default function SectionsManager({
           onAction={openCreate}
         />
       ) : (
-        <Box sx={{ width: "100%" }}>
-          <DataGrid
-            autoHeight
-            rows={sections}
-            columns={columns}
-            disableRowSelectionOnClick
-            hideFooter={sections.length <= 100}
-            sx={{ border: 0 }}
-          />
-        </Box>
+        <ResponsiveTable
+          rows={sections}
+          columns={columns}
+          renderCard={renderCard}
+          filterText={(s) => `${s.className} ${s.name}`}
+          gridMinWidth={380}
+        />
       )}
 
-      <Dialog open={open} onClose={pending ? undefined : () => setOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{editing ? "শাখা সম্পাদনা" : "নতুন শাখা"}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            {error && <Alert severity="error">{error}</Alert>}
-            <TextField
-              select
-              label="ক্লাস *"
-              value={form.classId}
-              onChange={(e) => setForm((f) => ({ ...f, classId: e.target.value }))}
-              disabled={!!editing}
-            >
-              {classes.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {c.name}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="শাখার নাম *"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              autoFocus
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button variant="text" color="inherit" onClick={() => setOpen(false)} disabled={pending}>
-            বাতিল
-          </Button>
-          <Button onClick={submit} disabled={pending}>
-            সংরক্ষণ
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ResponsiveDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        disableClose={pending}
+        title={editing ? "শাখা সম্পাদনা" : "নতুন শাখা"}
+        maxWidth="xs"
+        actions={
+          <>
+            <Button variant="text" color="inherit" onClick={() => setOpen(false)} disabled={pending}>
+              বাতিল
+            </Button>
+            <Button onClick={submit} disabled={pending}>
+              সংরক্ষণ
+            </Button>
+          </>
+        }
+      >
+        <Stack spacing={2.5}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <TextField
+            select
+            label="ক্লাস *"
+            value={form.classId}
+            onChange={(e) => setForm((f) => ({ ...f, classId: e.target.value }))}
+            disabled={!!editing}
+          >
+            {classes.map((c) => (
+              <MenuItem key={c.id} value={c.id}>
+                {c.name}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="শাখার নাম *"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            autoFocus
+          />
+        </Stack>
+      </ResponsiveDialog>
 
       <ConfirmDialog
         open={!!toDelete}
