@@ -11,6 +11,7 @@ export type ReceiptData = {
   lines: { label: string; amount: number }[];
   total: number;
   paid: number;
+  remarks?: string;
 };
 
 function escapeHtml(s: string): string {
@@ -60,6 +61,7 @@ export function buildReceiptHtml(d: ReceiptData): string {
       <tr><td class="due">বাকি</td><td style="text-align:right" class="due">${taka(due)}</td></tr>
     </tbody>
   </table>
+  ${d.remarks ? `<p style="margin-top:12px"><b>মন্তব্য:</b> ${escapeHtml(d.remarks)}</p>` : ""}
   <p style="text-align:center;margin-top:24px;color:#888;font-size:12px">ধন্যবাদ</p>
   <div style="text-align:center"><button onclick="window.print()">প্রিন্ট</button></div>
 </body></html>`;

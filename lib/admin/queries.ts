@@ -178,6 +178,65 @@ export async function getAttendanceMap(
   return map;
 }
 
+/* ─────────────────── Attendance report (range) ─────────────────── */
+
+export type AttendanceReportRow = {
+  id: string; // studentId
+  name: string;
+  roll: string;
+  sectionName: string;
+  present: number;
+  absent: number;
+  total: number;
+  pct: number; // present / total * 100
+};
+
+/**
+ * Per-student attendance summary for a class over a date range: present/absent
+ * counts + percentage. Only active students; date compared as YYYY-MM-DD string.
+ */
+export async function getAttendanceReport(
+  db: ScopedDb,
+  filter: { classId: string; from: string; to: string }
+): Promise<{ rows: AttendanceReportRow[]; days: number }> {
+  if (!filter.classId) return { rows: [], days: 0 };
+  const [from, to] = filter.from <= filter.to ? [filter.from, filter.to] : [filter.to, filter.from];
+
+  const [students, docs] = await Promise.all([
+    listStudents(db, { classId: filter.classId, activeOnly: true }),
+    db
+      .collection<AttendanceDoc>(Collections.attendance)
+      .findArray({ classId: filter.classId, date: { $gte: from, $lte: to } }) as Promise<AttendanceDoc[]>,
+  ]);
+
+  const byStudent = new Map<string, { present: number; absent: number }>();
+  const dates = new Set<string>();
+  for (const a of docs) {
+    dates.add(a.date);
+    const cur = byStudent.get(a.studentId) ?? { present: 0, absent: 0 };
+    if (a.status === "absent") cur.absent += 1;
+    else cur.present += 1;
+    byStudent.set(a.studentId, cur);
+  }
+
+  const rows: AttendanceReportRow[] = students.map((s) => {
+    const c = byStudent.get(s.id) ?? { present: 0, absent: 0 };
+    const total = c.present + c.absent;
+    return {
+      id: s.id,
+      name: s.name,
+      roll: s.roll,
+      sectionName: s.sectionName,
+      present: c.present,
+      absent: c.absent,
+      total,
+      pct: total > 0 ? Math.round((c.present / total) * 100) : 0,
+    };
+  });
+
+  return { rows, days: dates.size };
+}
+
 /* ───────────────────────── Payments ───────────────────────── */
 
 export type PayColumn = { key: string; label: string; type: string };
@@ -191,6 +250,7 @@ export type PayRow = {
   amounts: Record<string, number>;
   paidAmount: number;
   status: PayStatus;
+  remarks: string;
   saved: boolean;
 };
 
@@ -282,6 +342,7 @@ export async function buildPaymentRows(
         amounts,
         paidAmount: saved.paidAmount,
         status: saved.status,
+        remarks: saved.remarks ?? "",
         saved: true,
       };
     }
@@ -299,6 +360,7 @@ export async function buildPaymentRows(
       amounts,
       paidAmount: 0,
       status: "none",
+      remarks: "",
       saved: false,
     };
   });
@@ -490,8 +552,13 @@ export async function getDueReport(
 
 export type DashboardStats = {
   activeStudents: number;
-  collection: number;
-  due: number;
+  totalStudents: number;
+  todayCollection: number;
+  monthCollection: number;
+  monthDue: number;
+  yearCollection: number;
+  yearDue: number;
+  monthly: number[]; // 12 entries: collection per month of the year
 };
 
 export async function getDashboardStats(
@@ -499,23 +566,56 @@ export async function getDashboardStats(
   year: number,
   month: number
 ): Promise<DashboardStats> {
-  const [activeStudents, agg] = await Promise.all([
+  // Bounds of "today" for the daily collection figure (paidAt is a Date).
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const [activeStudents, totalStudents, yearAggCur, todayAggCur] = await Promise.all([
     db.collection(Collections.students).countDocuments({ active: true }),
+    db.collection(Collections.students).countDocuments({}),
     db
       .collection<PaymentDoc>(Collections.payments)
-      .aggregate<{ paid: number; total: number }>([
-        { $match: { year, month } },
-        {
-          $group: {
-            _id: null,
-            paid: { $sum: "$paidAmount" },
-            total: { $sum: "$totalAmount" },
-          },
-        },
+      .aggregate<{ _id: number; paid: number; total: number }>([
+        { $match: { year } },
+        { $group: { _id: "$month", paid: { $sum: "$paidAmount" }, total: { $sum: "$totalAmount" } } },
+      ]),
+    db
+      .collection<PaymentDoc>(Collections.payments)
+      .aggregate<{ paid: number }>([
+        { $match: { paidAt: { $gte: dayStart, $lt: dayEnd } } },
+        { $group: { _id: null, paid: { $sum: "$paidAmount" } } },
       ]),
   ]);
-  const row = (await agg.toArray())[0];
-  const collection = row?.paid ?? 0;
-  const due = (row?.total ?? 0) - collection;
-  return { activeStudents, collection, due: Math.max(0, due) };
+
+  const yearRows = await yearAggCur.toArray();
+  const monthly = Array.from({ length: 12 }, () => 0);
+  let yearCollection = 0;
+  let yearDue = 0;
+  let monthCollection = 0;
+  let monthDue = 0;
+  for (const r of yearRows) {
+    const paid = r.paid ?? 0;
+    const due = Math.max(0, (r.total ?? 0) - paid);
+    if (r._id >= 1 && r._id <= 12) monthly[r._id - 1] = paid;
+    yearCollection += paid;
+    yearDue += due;
+    if (r._id === month) {
+      monthCollection = paid;
+      monthDue = due;
+    }
+  }
+  const todayCollection = (await todayAggCur.toArray())[0]?.paid ?? 0;
+
+  return {
+    activeStudents,
+    totalStudents,
+    todayCollection,
+    monthCollection,
+    monthDue,
+    yearCollection,
+    yearDue,
+    monthly,
+  };
 }

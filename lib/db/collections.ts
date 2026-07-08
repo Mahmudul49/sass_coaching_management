@@ -117,6 +117,7 @@ export type PaymentDoc = {
   paidAmount: number;
   status: PaymentStatus;
   paidAt: Date | null;
+  remarks?: string; // optional teacher note on student progress
 };
 
 export type SmsKind =

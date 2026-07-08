@@ -29,28 +29,37 @@ export default function StatCard({
           pointerEvents: "none",
         }}
       />
-      <CardContent sx={{ position: "relative", p: { xs: 2, sm: 2.5 } }}>
+      <CardContent sx={{ position: "relative", p: { xs: 1.5, sm: 2.5 } }}>
         {icon && (
           <Box
             sx={{
-              width: 44,
-              height: 44,
+              width: { xs: 38, sm: 44 },
+              height: { xs: 38, sm: 44 },
               borderRadius: 2.5,
               bgcolor: color,
               color: "#fff",
               display: "grid",
               placeItems: "center",
-              mb: 1.5,
+              mb: { xs: 1, sm: 1.5 },
               boxShadow: `0 6px 16px -6px ${color}80`,
+              "& svg": { fontSize: { xs: 20, sm: 24 } },
             }}
           >
             {icon}
           </Box>
         )}
-        <Typography variant="h4" fontWeight={800} noWrap sx={{ lineHeight: 1.1 }}>
+        <Typography
+          fontWeight={800}
+          noWrap
+          sx={{ lineHeight: 1.1, fontSize: { xs: "1.25rem", sm: "2rem" } }}
+        >
           {value}
         </Typography>
-        <Typography variant="body2" color="text.secondary" noWrap sx={{ mt: 0.5 }}>
+        <Typography
+          color="text.secondary"
+          noWrap
+          sx={{ mt: 0.5, fontSize: { xs: "0.72rem", sm: "0.875rem" } }}
+        >
           {label}
         </Typography>
       </CardContent>

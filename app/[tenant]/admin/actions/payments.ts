@@ -19,6 +19,7 @@ export type SavePaymentInput = {
   month: number;
   components: PaymentComponent[];
   paidAmount: number;
+  remarks?: string; // optional progress note
 };
 export type SaveResult = { ok: boolean; error?: string; status?: PaymentStatus };
 
@@ -59,6 +60,7 @@ export async function savePayment(input: SavePaymentInput): Promise<SaveResult> 
         paidAmount,
         status,
         paidAt: paidAmount > 0 ? new Date() : null,
+        remarks: String(input.remarks ?? "").trim().slice(0, 500),
       },
       $setOnInsert: {
         studentId: input.studentId,

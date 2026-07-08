@@ -33,6 +33,7 @@ type Row = {
   sectionName: string;
   phone: string;
   paidAmount: number;
+  remarks: string;
   saved: boolean;
   [key: string]: string | number | boolean;
 };
@@ -46,6 +47,7 @@ function flatten(rows: PayRow[], template: PayColumn[]): Row[] {
       sectionName: r.sectionName,
       phone: r.phone,
       paidAmount: Number(r.paidAmount) || 0,
+      remarks: r.remarks ?? "",
       saved: r.saved,
     };
     for (const c of template) row[c.key] = r.amounts[c.key] ?? 0;
@@ -105,6 +107,9 @@ export default function PaymentsClient({
   const setPaid = (id: string, value: number) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, paidAmount: value } : r)));
 
+  const setRemarks = (id: string, value: string) =>
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, remarks: value } : r)));
+
   function buildComponents(row: Row) {
     return template.map((c) => ({ type: c.type, label: c.label, amount: Number(row[c.key]) || 0 }));
   }
@@ -117,6 +122,7 @@ export default function PaymentsClient({
       month,
       components: buildComponents(row),
       paidAmount: Number(row.paidAmount) || 0,
+      remarks: String(row.remarks ?? ""),
     });
   }
 
@@ -154,6 +160,7 @@ export default function PaymentsClient({
       lines: template.map((c) => ({ label: c.label, amount: Number(row[c.key]) || 0 })),
       total: rowTotal(row),
       paid: Number(row.paidAmount) || 0,
+      remarks: String(row.remarks ?? ""),
     };
   }
   const receipt = (row: Row) => printReceipt(buildReceipt(row));
@@ -216,6 +223,12 @@ export default function PaymentsClient({
         width: 110,
         renderCell: (p: GridRenderCellParams<Row>) =>
           statusChip(rowTotal(p.row), Number(p.row.paidAmount) || 0),
+      },
+      {
+        field: "remarks",
+        headerName: "মন্তব্য (ঐচ্ছিক)",
+        width: 200,
+        editable: true,
       },
       {
         field: "actions",
@@ -329,6 +342,15 @@ export default function PaymentsClient({
                         সেভ
                       </Button>
                     </Stack>
+                    <TextField
+                      label="মন্তব্য / অগ্রগতি (ঐচ্ছিক)"
+                      size="small"
+                      fullWidth
+                      multiline
+                      value={row.remarks}
+                      onChange={(e) => setRemarks(row.id, e.target.value)}
+                      sx={{ mt: 1.5 }}
+                    />
                   </CardContent>
                 </Card>
               );
