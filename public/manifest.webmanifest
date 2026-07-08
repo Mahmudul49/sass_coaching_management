@@ -1,0 +1,16 @@
+{
+  "name": "কোচিং ম্যানেজমেন্ট",
+  "short_name": "কোচিং",
+  "description": "কোচিং সেন্টার ব্যবস্থাপনা",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F4F6F3",
+  "theme_color": "#0F7A6B",
+  "lang": "bn",
+  "dir": "ltr",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

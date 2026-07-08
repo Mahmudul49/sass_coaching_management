@@ -25,7 +25,8 @@ async function validateClassSection(
   sectionId: string
 ): Promise<string | null> {
   if (!classId) return "ক্লাস নির্বাচন করুন।";
-  if (!sectionId) return "শাখা নির্বাচন করুন।";
+  // Section optional. If given, must exist and belong to the class.
+  if (!sectionId) return null;
   const section = (await db
     .collection<SectionDoc>(Collections.sections)
     .findOne({ _id: toObjectId(sectionId)! } as never)) as SectionDoc | null;
@@ -89,6 +90,20 @@ export async function deleteStudent(id: string): Promise<ActionResult> {
   const _id = toObjectId(id);
   if (!_id) return fail("ভুল আইডি।");
   await db.collection(Collections.students).deleteOne({ _id } as never);
+  await revalidateTenantAdminLayout();
+  return { ok: true };
+}
+
+/**
+ * Activate / deactivate a student (lifecycle). Inactive students are hidden from
+ * operational modules (list default, payment, attendance) but their historical
+ * payment records are preserved and still appear in historical reports.
+ */
+export async function setStudentActive(id: string, active: boolean): Promise<ActionResult> {
+  const { db } = await requireAdminFromRequest();
+  const _id = toObjectId(id);
+  if (!_id) return fail("ভুল আইডি।");
+  await db.collection(Collections.students).updateOne({ _id } as never, { $set: { active: !!active } });
   await revalidateTenantAdminLayout();
   return { ok: true };
 }
@@ -170,10 +185,11 @@ export async function importStudentsFromExcel(
     const phone = r.phone?.trim();
     const className = r.className?.trim();
     const sectionName = r.sectionName?.trim();
-    if (!name || !roll || !phone || !className || !sectionName) continue;
+    // Section optional — only class required alongside name/roll/phone.
+    if (!name || !roll || !phone || !className) continue;
 
     const classId = await ensureClass(className);
-    const sectionId = await ensureSection(classId, sectionName);
+    const sectionId = sectionName ? await ensureSection(classId, sectionName) : "";
     docs.push({ classId, sectionId, name, roll, phone, active: true, createdAt: now });
   }
 

@@ -14,7 +14,7 @@ export default async function StudentsPage({ params }: { params: Promise<{ tenan
   ]);
   return (
     <Stack spacing={2}>
-      <Typography variant="h5">ছাত্র ব্যবস্থাপনা</Typography>
+      <Typography variant="h5">শিক্ষার্থী ব্যবস্থাপনা</Typography>
       <StudentsManager students={students} classes={classes} sections={sections} />
     </Stack>
   );

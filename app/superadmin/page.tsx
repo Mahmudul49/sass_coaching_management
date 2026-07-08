@@ -18,7 +18,7 @@ export default async function SuperAdminDashboard() {
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} flexWrap="wrap" useFlexGap>
         <StatCard
-          label="মোট সক্রিয় ছাত্র"
+          label="মোট সক্রিয় শিক্ষার্থী"
           value={toBnDigits(stats.totalActiveStudents)}
           icon={<GroupsIcon />}
         />

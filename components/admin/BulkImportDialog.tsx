@@ -65,7 +65,7 @@ export default function BulkImportDialog({
       if (!roll) errors.push("রোল নেই");
       if (!phone) errors.push("ফোন নেই");
       if (!className) errors.push("ক্লাস নেই");
-      if (!sectionName) errors.push("শাখা নেই");
+      // Section optional — no error when blank.
 
       // Unmatched class/section are NOT errors — they will be created on import.
       const cls = className ? classByName.get(className.toLowerCase()) : undefined;
@@ -121,7 +121,7 @@ export default function BulkImportDialog({
         if (res.classesCreated) extra.push(`${toBnDigits(res.classesCreated)} টি নতুন ক্লাস`);
         if (res.sectionsCreated) extra.push(`${toBnDigits(res.sectionsCreated)} টি নতুন শাখা`);
         toast.success(
-          `${toBnDigits(res.inserted)} জন ছাত্র যোগ হয়েছে।` +
+          `${toBnDigits(res.inserted)} জন শিক্ষার্থী যোগ হয়েছে।` +
             (extra.length ? ` (${extra.join(", ")} তৈরি হয়েছে)` : "")
         );
         handleClose();
@@ -139,12 +139,12 @@ export default function BulkImportDialog({
 
   return (
     <Dialog open={open} onClose={pending ? undefined : handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>Excel দিয়ে ছাত্র যোগ করুন</DialogTitle>
+      <DialogTitle>Excel দিয়ে শিক্ষার্থী যোগ করুন</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <Alert severity="info">
-            কলাম: <b>Name, Roll, Phone, Class, Section</b>. কোনো ক্লাস বা শাখা আগে
-            থেকে না থাকলে ইম্পোর্টের সময় <b>স্বয়ংক্রিয়ভাবে তৈরি</b> হয়ে যাবে।
+            কলাম: <b>Name, Roll, Phone, Class</b> এবং <b>Section (ঐচ্ছিক)</b>। কোনো
+            ক্লাস বা শাখা আগে থেকে না থাকলে ইম্পোর্টের সময় <b>স্বয়ংক্রিয়ভাবে তৈরি</b> হয়ে যাবে।
           </Alert>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>

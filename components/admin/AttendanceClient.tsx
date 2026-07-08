@@ -9,9 +9,9 @@ import MenuItem from "@mui/material/MenuItem";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
-import RadioGroup from "@mui/material/RadioGroup";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Radio from "@mui/material/Radio";
+import Paper from "@mui/material/Paper";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Divider from "@mui/material/Divider";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
@@ -44,7 +44,7 @@ export default function AttendanceClient({
 
   const initial = useMemo(() => {
     const m: Record<string, AttendanceStatus> = {};
-    for (const s of students) m[s.id] = savedMap[s.id] ?? "present"; // default present
+    for (const s of students) m[s.id] = savedMap[s.id] ?? "present";
     return m;
   }, [students, savedMap]);
 
@@ -99,12 +99,7 @@ export default function AttendanceClient({
       <Card>
         <CardContent>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <TextField
-              select
-              label="ক্লাস"
-              value={classId}
-              onChange={(e) => navigate({ classId: e.target.value })}
-            >
+            <TextField select label="ক্লাস" value={classId} onChange={(e) => navigate({ classId: e.target.value })}>
               {classes.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
                   {c.name}
@@ -123,84 +118,108 @@ export default function AttendanceClient({
       </Card>
 
       {!smsEnabled && (
-        <Alert severity="info">
-          এই সেন্টারে উপস্থিতির SMS বন্ধ আছে। সেটিংস থেকে চালু করতে পারেন।
-        </Alert>
+        <Alert severity="info">এই সেন্টারে উপস্থিতির SMS বন্ধ আছে। সেটিংস থেকে চালু করতে পারেন।</Alert>
       )}
 
       {students.length === 0 ? (
         <Card sx={{ p: 2 }}>
           <EmptyState
-            title="এই ক্লাসে কোনো ছাত্র নেই"
-            description="অন্য ক্লাস নির্বাচন করুন অথবা ছাত্র যোগ করুন।"
+            title="এই ক্লাসে কোনো শিক্ষার্থী নেই"
+            description="অন্য ক্লাস নির্বাচন করুন অথবা শিক্ষার্থী যোগ করুন।"
           />
         </Card>
       ) : (
-        <Card>
-          <CardContent>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              justifyContent="space-between"
-              alignItems={{ xs: "stretch", sm: "center" }}
-              spacing={1.5}
-              sx={{ mb: 1 }}
-            >
-              <Chip
-                color="success"
-                label={`উপস্থিত: ${toBnDigits(presentCount)} / ${toBnDigits(students.length)}`}
-              />
-              <Stack direction="row" spacing={1}>
-                <Button size="small" variant="outlined" color="success" onClick={() => setAll("present")}>
+        <>
+          <Card>
+            <CardContent sx={{ pb: 1 }}>
+              <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+                <Button fullWidth variant="outlined" color="success" onClick={() => setAll("present")}>
                   সবাইকে উপস্থিত
                 </Button>
-                <Button size="small" variant="outlined" color="error" onClick={() => setAll("absent")}>
+                <Button fullWidth variant="outlined" color="error" onClick={() => setAll("absent")}>
                   সবাইকে অনুপস্থিত
                 </Button>
               </Stack>
-            </Stack>
-            <Divider sx={{ mb: 1 }} />
+              <Divider />
 
-            <Stack divider={<Divider />}>
-              {students.map((s) => (
-                <Stack
-                  key={s.id}
-                  direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  sx={{ py: 0.5 }}
-                >
-                  <Box>
-                    <Typography variant="body1">{s.name}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      রোল: {toBnDigits(s.roll)} · {s.sectionName}
-                    </Typography>
-                  </Box>
-                  <RadioGroup
-                    row
-                    value={statuses[s.id] ?? "present"}
-                    onChange={(e) =>
-                      setStatuses((m) => ({ ...m, [s.id]: e.target.value as AttendanceStatus }))
-                    }
+              <Stack divider={<Divider />}>
+                {students.map((s) => (
+                  <Stack
+                    key={s.id}
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    spacing={1}
+                    sx={{ py: 1.25 }}
                   >
-                    <FormControlLabel value="present" control={<Radio color="success" />} label="উপস্থিত" />
-                    <FormControlLabel value="absent" control={<Radio color="error" />} label="অনুপস্থিত" />
-                  </RadioGroup>
-                </Stack>
-              ))}
-            </Stack>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body1" fontWeight={600} noWrap>
+                        {s.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        রোল {toBnDigits(s.roll)} · {s.sectionName}
+                      </Typography>
+                    </Box>
+                    <ToggleButtonGroup
+                      exclusive
+                      size="small"
+                      value={statuses[s.id] ?? "present"}
+                      onChange={(_e, v) => {
+                        if (v) setStatuses((m) => ({ ...m, [s.id]: v as AttendanceStatus }));
+                      }}
+                      sx={{ flexShrink: 0 }}
+                    >
+                      <ToggleButton
+                        value="present"
+                        color="success"
+                        sx={{ px: 1.5, "&.Mui-selected": { bgcolor: "success.main", color: "#fff", "&:hover": { bgcolor: "success.dark" } } }}
+                      >
+                        উপস্থিত
+                      </ToggleButton>
+                      <ToggleButton
+                        value="absent"
+                        color="error"
+                        sx={{ px: 1.5, "&.Mui-selected": { bgcolor: "error.main", color: "#fff", "&:hover": { bgcolor: "error.dark" } } }}
+                      >
+                        অনুপস্থিত
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+                  </Stack>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
 
-            <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-              <Button size="large" onClick={save} disabled={pending}>
-                {pending ? "সংরক্ষণ হচ্ছে..." : "সংরক্ষণ করুন"}
+          {/* Sticky save bar — always reachable above the mobile bottom nav */}
+          <Paper
+            elevation={4}
+            sx={{
+              position: "sticky",
+              bottom: { xs: 72, md: 8 },
+              zIndex: 3,
+              p: 1.5,
+              borderRadius: 3,
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
+            }}
+          >
+            <Chip
+              color="success"
+              label={`উপস্থিত ${toBnDigits(presentCount)}/${toBnDigits(students.length)}`}
+              sx={{ fontWeight: 700 }}
+            />
+            <Box sx={{ flex: 1 }} />
+            {hasSaved && smsEnabled && (
+              <Button variant="outlined" onClick={resend} disabled={pending}>
+                SMS
               </Button>
-              {hasSaved && smsEnabled && (
-                <Button size="large" variant="outlined" onClick={resend} disabled={pending}>
-                  SMS পুনরায় পাঠান
-                </Button>
-              )}
-            </Stack>
-          </CardContent>
-        </Card>
+            )}
+            <Button onClick={save} disabled={pending} sx={{ minWidth: 140 }}>
+              {pending ? "সংরক্ষণ..." : "সংরক্ষণ করুন"}
+            </Button>
+          </Paper>
+        </>
       )}
     </Stack>
   );

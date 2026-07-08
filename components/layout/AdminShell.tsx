@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import NextLink from "next/link";
 import AppBar from "@mui/material/AppBar";
@@ -14,7 +14,9 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import IconButton from "@mui/material/IconButton";
 import Divider from "@mui/material/Divider";
-import Toolbar2 from "@mui/material/Toolbar";
+import Paper from "@mui/material/Paper";
+import BottomNavigation from "@mui/material/BottomNavigation";
+import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import MenuIcon from "@mui/icons-material/Menu";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import ClassIcon from "@mui/icons-material/Class";
@@ -29,12 +31,7 @@ import SchoolIcon from "@mui/icons-material/School";
 import LogoutButton from "./LogoutButton";
 import { tenantAdminBaseFromPath } from "./tenantAdminBase";
 
-const DRAWER_WIDTH = 248;
-
-function useAdminBase(): string {
-  const pathname = usePathname();
-  return tenantAdminBaseFromPath(pathname);
-}
+const DRAWER_WIDTH = 256;
 
 export default function AdminShell({
   centerName,
@@ -44,47 +41,51 @@ export default function AdminShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const base = useAdminBase();
+  const base = tenantAdminBaseFromPath(pathname);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const nav = useMemo(
     () => [
-      { href: base, label: "ড্যাশবোর্ড", icon: <DashboardIcon /> },
+      { href: base, label: "ড্যাশবোর্ড", icon: <DashboardIcon />, primary: true },
+      { href: `${base}/students`, label: "শিক্ষার্থী", icon: <GroupsIcon />, primary: true },
+      { href: `${base}/attendance`, label: "উপস্থিতি", icon: <FactCheckIcon />, primary: true },
+      { href: `${base}/payments`, label: "পেমেন্ট", icon: <PaidIcon />, primary: true },
+      { href: `${base}/reports`, label: "রিপোর্ট", icon: <AssessmentIcon />, primary: true },
       { href: `${base}/classes`, label: "ক্লাস", icon: <ClassIcon /> },
       { href: `${base}/sections`, label: "শাখা", icon: <CategoryIcon /> },
       { href: `${base}/fees`, label: "ফি স্ট্রাকচার", icon: <ReceiptLongIcon /> },
-      { href: `${base}/students`, label: "ছাত্র", icon: <GroupsIcon /> },
-      { href: `${base}/attendance`, label: "উপস্থিতি", icon: <FactCheckIcon /> },
-      { href: `${base}/payments`, label: "পেমেন্ট", icon: <PaidIcon /> },
-      { href: `${base}/reports`, label: "বকেয়া রিপোর্ট", icon: <AssessmentIcon /> },
       { href: `${base}/settings`, label: "সেটিংস", icon: <SettingsIcon /> },
     ],
     [base]
   );
+  const primary = nav.filter((n) => n.primary);
 
   const isActive = (href: string) =>
     href === base ? pathname === base : pathname.startsWith(href);
 
+  // Value for the bottom nav: the matched primary href, else false.
+  const bottomValue = primary.find((p) => isActive(p.href))?.href ?? false;
+
   const drawerContent = (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Toolbar2 sx={{ gap: 1 }}>
+      <Toolbar sx={{ gap: 1 }}>
         <SchoolIcon color="primary" />
-        <Typography variant="subtitle1" fontWeight={700} noWrap>
+        <Typography variant="subtitle1" fontWeight={800} noWrap>
           {centerName}
         </Typography>
-      </Toolbar2>
+      </Toolbar>
       <Divider />
-      <List sx={{ flexGrow: 1, py: 1 }}>
+      <List sx={{ flexGrow: 1, py: 1, px: 1 }}>
         {nav.map((item) => (
-          <ListItem key={item.href} disablePadding sx={{ px: 1 }}>
+          <ListItem key={item.href} disablePadding>
             <ListItemButton
               component={NextLink}
               href={item.href}
               selected={isActive(item.href)}
               onClick={() => setMobileOpen(false)}
               sx={{
-                borderRadius: 2,
                 mb: 0.5,
+                minHeight: 48,
                 "&.Mui-selected": {
                   bgcolor: "primary.main",
                   color: "#fff",
@@ -94,7 +95,7 @@ export default function AdminShell({
               }}
             >
               <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} />
+              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
             </ListItemButton>
           </ListItem>
         ))}
@@ -104,27 +105,26 @@ export default function AdminShell({
 
   return (
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
-      <AppBar
-        position="fixed"
-        color="primary"
-        sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}
-      >
+      <AppBar position="fixed" color="primary" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar>
           <IconButton
             color="inherit"
             edge="start"
+            aria-label="মেনু"
             onClick={() => setMobileOpen((v) => !v)}
             sx={{ mr: 1, display: { md: "none" } }}
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" sx={{ flexGrow: 1 }} noWrap>
+          <SchoolIcon sx={{ mr: 1, display: { xs: "none", md: "block" } }} />
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }} noWrap>
             {centerName}
           </Typography>
           <LogoutButton />
         </Toolbar>
       </AppBar>
 
+      {/* Mobile hamburger drawer: full nav */}
       <Drawer
         variant="temporary"
         open={mobileOpen}
@@ -138,23 +138,65 @@ export default function AdminShell({
         {drawerContent}
       </Drawer>
 
+      {/* Desktop persistent sidebar */}
       <Drawer
         variant="permanent"
+        open
         sx={{
           display: { xs: "none", md: "block" },
           width: DRAWER_WIDTH,
           flexShrink: 0,
-          "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" },
+          "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box", borderRight: "1px solid rgba(18,36,31,0.08)" },
         }}
-        open
       >
         {drawerContent}
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, width: { md: `calc(100% - ${DRAWER_WIDTH}px)` } }}>
+      <Box
+        component="main"
+        sx={{ flexGrow: 1, width: { md: `calc(100% - ${DRAWER_WIDTH}px)` }, minWidth: 0 }}
+      >
         <Toolbar />
-        <Box sx={{ p: { xs: 1.5, sm: 3 } }}>{children}</Box>
+        <Box
+          sx={{
+            p: { xs: 1.5, sm: 2.5, md: 3 },
+            pb: { xs: 11, md: 3 }, // clear the mobile bottom nav
+            maxWidth: { md: 1180 },
+            mx: "auto",
+          }}
+        >
+          {children}
+        </Box>
       </Box>
+
+      {/* Mobile bottom navigation: 5 primary destinations */}
+      <Paper
+        elevation={3}
+        sx={{
+          display: { xs: "block", md: "none" },
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: (t) => t.zIndex.appBar,
+          borderTop: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <BottomNavigation value={bottomValue} showLabels sx={{ height: 64 }}>
+          {primary.map((item) => (
+            <BottomNavigationAction
+              key={item.href}
+              component={NextLink}
+              href={item.href}
+              value={item.href}
+              label={item.label}
+              icon={item.icon}
+              sx={{ minWidth: 0, "& .MuiBottomNavigationAction-label": { fontSize: "0.7rem" } }}
+            />
+          ))}
+        </BottomNavigation>
+      </Paper>
     </Box>
   );
 }

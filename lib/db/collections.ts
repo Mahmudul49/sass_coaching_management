@@ -61,16 +61,21 @@ export type SectionDoc = {
   name: string;
 };
 
-export type FeeComponent = { label: string; amount: number };
+// `month` (1-12) binds a fee to a specific month; undefined = every month (legacy).
+export type FeeComponent = { label: string; amount: number; month?: number };
+
+// `enabled` toggles a model test on/off without losing the amount; undefined = on (legacy).
+export type ModelTestFee = { amount: number; month: number; enabled?: boolean };
 
 export type FeeStructureDoc = {
   _id: ObjectId;
   tenantId: string;
   classId: string;
   admissionFee: number;
+  admissionMonth?: number; // which month admission is charged; undefined = every month (legacy)
   monthlyFee: number;
-  modelTestHalfYearly: { amount: number; month: number }; // month 1-12
-  modelTestAnnual: { amount: number; month: number };
+  modelTestHalfYearly: ModelTestFee; // month 1-12
+  modelTestAnnual: ModelTestFee;
   others: FeeComponent[];
 };
 

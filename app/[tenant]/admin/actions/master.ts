@@ -47,7 +47,7 @@ export async function deleteClass(id: string): Promise<ActionResult> {
   const _id = toObjectId(id);
   if (!_id) return fail("ভুল আইডি।");
   const students = await db.collection(Collections.students).countDocuments({ classId: id });
-  if (students > 0) return fail("এই ক্লাসে ছাত্র আছে — আগে ছাত্র সরান।");
+  if (students > 0) return fail("এই ক্লাসে শিক্ষার্থী আছে — আগে শিক্ষার্থী সরান।");
   await db.collection(Collections.classes).deleteOne({ _id } as never);
   await db.collection(Collections.sections).deleteMany({ classId: id });
   await db.collection(Collections.feeStructure).deleteMany({ classId: id });
@@ -87,7 +87,7 @@ export async function deleteSection(id: string): Promise<ActionResult> {
   const _id = toObjectId(id);
   if (!_id) return fail("ভুল আইডি।");
   const students = await db.collection(Collections.students).countDocuments({ sectionId: id });
-  if (students > 0) return fail("এই শাখায় ছাত্র আছে — আগে ছাত্র সরান।");
+  if (students > 0) return fail("এই শাখায় শিক্ষার্থী আছে — আগে শিক্ষার্থী সরান।");
   await db.collection(Collections.sections).deleteOne({ _id } as never);
   await revalidateTenantAdminLayout();
   return ok;
@@ -98,10 +98,11 @@ export async function deleteSection(id: string): Promise<ActionResult> {
 export type FeeInput = {
   classId: string;
   admissionFee: number;
+  admissionMonth: number;
   monthlyFee: number;
-  modelTestHalfYearly: { amount: number; month: number };
-  modelTestAnnual: { amount: number; month: number };
-  others: { label: string; amount: number }[];
+  modelTestHalfYearly: { amount: number; month: number; enabled: boolean };
+  modelTestAnnual: { amount: number; month: number; enabled: boolean };
+  others: { label: string; amount: number; month: number }[];
 };
 
 const num = (v: unknown) => {
@@ -122,7 +123,11 @@ export async function saveFeeStructure(input: FeeInput): Promise<ActionResult> {
   if (!cls) return fail("ক্লাস পাওয়া যায়নি।");
 
   const others = (input.others ?? [])
-    .map((o) => ({ label: String(o.label ?? "").trim(), amount: num(o.amount) }))
+    .map((o) => ({
+      label: String(o.label ?? "").trim(),
+      amount: num(o.amount),
+      month: clampMonth(o.month),
+    }))
     .filter((o) => o.label);
 
   await db.collection(Collections.feeStructure).updateOne(
@@ -130,14 +135,17 @@ export async function saveFeeStructure(input: FeeInput): Promise<ActionResult> {
     {
       $set: {
         admissionFee: num(input.admissionFee),
+        admissionMonth: clampMonth(input.admissionMonth),
         monthlyFee: num(input.monthlyFee),
         modelTestHalfYearly: {
           amount: num(input.modelTestHalfYearly?.amount),
           month: clampMonth(input.modelTestHalfYearly?.month),
+          enabled: input.modelTestHalfYearly?.enabled !== false,
         },
         modelTestAnnual: {
           amount: num(input.modelTestAnnual?.amount),
           month: clampMonth(input.modelTestAnnual?.month),
+          enabled: input.modelTestAnnual?.enabled !== false,
         },
         others,
       },

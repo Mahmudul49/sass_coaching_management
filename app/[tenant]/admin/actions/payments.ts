@@ -10,7 +10,7 @@ import {
 import { toObjectId } from "@/lib/db/oid";
 import { sendSms } from "@/lib/sms";
 import { smsTemplates } from "@/lib/sms/templates";
-import { revalidateTenantAdminPage } from "@/lib/tenant/revalidate";
+import { revalidateTenantAdminLayout } from "@/lib/tenant/revalidate";
 
 export type SavePaymentInput = {
   studentId: string;
@@ -35,7 +35,7 @@ export async function savePayment(input: SavePaymentInput): Promise<SaveResult> 
   const student = (await db
     .collection<StudentDoc>(Collections.students)
     .findOne({ _id: toObjectId(input.studentId)! } as never)) as StudentDoc | null;
-  if (!student) return { ok: false, error: "ছাত্র পাওয়া যায়নি।" };
+  if (!student) return { ok: false, error: "শিক্ষার্থী পাওয়া যায়নি।" };
 
   const components = (input.components ?? [])
     .map((c) => ({
@@ -87,7 +87,9 @@ export async function savePayment(input: SavePaymentInput): Promise<SaveResult> 
     });
   }
 
-  await revalidateTenantAdminPage("payments");
+  // Cache-invalidate the whole admin area so dashboard cards + reports reflect
+  // the new payment without a manual refresh.
+  await revalidateTenantAdminLayout();
   return { ok: true, status };
 }
 

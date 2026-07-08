@@ -45,3 +45,19 @@ export function exportToExcel(
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   XLSX.writeFile(wb, filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`);
 }
+
+/**
+ * Export a raw array-of-arrays as a sheet — used for bank-style collection
+ * layouts (a title/meta header block followed by a table), e.g. the DBBL
+ * Tuition Fee Collection format.
+ */
+export function exportAoa(
+  filename: string,
+  aoa: (string | number)[][],
+  sheetName = "DEPS"
+) {
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`);
+}

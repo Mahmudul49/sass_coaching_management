@@ -24,7 +24,7 @@ import type {
 } from "@/lib/admin/queries";
 import { tenantAdminBaseFromPath } from "@/components/layout/tenantAdminBase";
 
-const STEPS = ["ক্লাস", "শাখা", "ফি স্ট্রাকচার", "ছাত্র"];
+const STEPS = ["ক্লাস", "শাখা", "ফি স্ট্রাকচার", "শিক্ষার্থী"];
 
 export default function SetupWizard({
   classes,

@@ -13,8 +13,10 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Checkbox from "@mui/material/Checkbox";
 import SearchIcon from "@mui/icons-material/Search";
 import DownloadIcon from "@mui/icons-material/Download";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { type GridColDef } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
+import ResponsiveTable from "@/components/ui/ResponsiveTable";
+import DataCard from "@/components/ui/DataCard";
 import { exportToExcel } from "@/lib/excel";
 import type { MarketingStudentRow, TenantRow } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
@@ -95,7 +97,7 @@ export default function StudentsMarketingClient({
       <Card sx={{ p: 2 }}>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            সকল সেন্টারের ছাত্রদের তথ্য খুঁজুন ও এক্সপোর্ট করুন — SMS, কল বা অন্য মার্কেটিং
+            সকল সেন্টারের শিক্ষার্থীদের তথ্য খুঁজুন ও এক্সপোর্ট করুন — SMS, কল বা অন্য মার্কেটিং
             কাজে ব্যবহার করুন।
           </Typography>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2} flexWrap="wrap" useFlexGap>
@@ -156,21 +158,32 @@ export default function StudentsMarketingClient({
 
         {rows.length === 0 ? (
           <EmptyState
-            title="কোনো ছাত্র পাওয়া যায়নি"
+            title="কোনো শিক্ষার্থী পাওয়া যায়নি"
             description="অন্য কীওয়ার্ড বা সেন্টার দিয়ে খুঁজুন।"
           />
         ) : (
-          <Box sx={{ width: "100%" }}>
-            <DataGrid
-              autoHeight
-              rows={rows}
-              columns={columns}
-              disableRowSelectionOnClick
-              initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-              pageSizeOptions={[25, 50, 100]}
-              sx={{ border: 0 }}
-            />
-          </Box>
+          <ResponsiveTable
+            rows={rows}
+            columns={columns}
+            gridMinWidth={780}
+            renderCard={(r) => (
+              <DataCard
+                title={r.name}
+                subtitle={`${r.tenantName} · ${r.className} ${r.sectionName}`}
+                right={
+                  r.active ? (
+                    <Chip label="সক্রিয়" color="success" size="small" />
+                  ) : (
+                    <Chip label="নিষ্ক্রিয়" size="small" />
+                  )
+                }
+                fields={[
+                  { label: "রোল", value: toBnDigits(r.roll) },
+                  { label: "ফোন", value: r.phone || "—" },
+                ]}
+              />
+            )}
+          />
         )}
         {truncated && (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>

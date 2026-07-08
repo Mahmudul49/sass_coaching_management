@@ -7,7 +7,7 @@ import Box from "@mui/material/Box";
 
 const LINKS = [
   { href: "/superadmin", label: "ড্যাশবোর্ড" },
-  { href: "/superadmin/students", label: "মার্কেটিং — ছাত্র" },
+  { href: "/superadmin/students", label: "মার্কেটিং — শিক্ষার্থী" },
 ];
 
 export default function SuperAdminNav() {

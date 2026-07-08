@@ -25,7 +25,7 @@ export default async function PaymentsPage({
         <Card sx={{ p: 2 }}>
           <EmptyState
             title="আগে ক্লাস ও ফি স্ট্রাকচার তৈরি করুন"
-            description="পেমেন্ট নেওয়ার আগে ক্লাস, ফি ও ছাত্র থাকতে হবে।"
+            description="পেমেন্ট নেওয়ার আগে ক্লাস, ফি ও শিক্ষার্থী থাকতে হবে।"
           />
         </Card>
       </Stack>

@@ -20,7 +20,7 @@ export default async function SuperAdminStudentsPage({
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h5">মার্কেটিং — ছাত্র তথ্য</Typography>
+      <Typography variant="h5">মার্কেটিং — শিক্ষার্থী তথ্য</Typography>
       <StudentsMarketingClient
         rows={rows}
         total={total}

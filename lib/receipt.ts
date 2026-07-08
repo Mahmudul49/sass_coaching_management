@@ -75,3 +75,31 @@ export function printReceipt(d: ReceiptData) {
   w.focus();
   setTimeout(() => w.print(), 300);
 }
+
+/** Plain-text receipt summary for WhatsApp/SMS. */
+export function receiptText(d: ReceiptData): string {
+  const due = Math.max(0, d.total - d.paid);
+  const lines = d.lines
+    .filter((l) => l.amount > 0)
+    .map((l) => `• ${l.label}: ${taka(l.amount)}`)
+    .join("\n");
+  return (
+    `${d.centerName}\n` +
+    `পেমেন্ট রসিদ — ${monthName(d.month)} ${toBnDigits(d.year)}\n` +
+    `নাম: ${d.studentName} (রোল ${toBnDigits(d.roll)})\n` +
+    `ক্লাস: ${d.className}${d.sectionName ? " " + d.sectionName : ""}\n` +
+    `${lines}\n` +
+    `মোট: ${taka(d.total)}\nপরিশোধিত: ${taka(d.paid)}\nবাকি: ${taka(due)}`
+  );
+}
+
+/** Open WhatsApp with a prefilled receipt message to the given phone. */
+export function shareReceiptWhatsApp(d: ReceiptData, phone: string) {
+  // Normalise BD numbers to international format for wa.me.
+  let p = (phone || "").replace(/[^0-9]/g, "");
+  if (p.startsWith("0")) p = "88" + p;
+  else if (!p.startsWith("88") && p.length === 10) p = "880" + p;
+  const text = encodeURIComponent(receiptText(d));
+  const url = p ? `https://wa.me/${p}?text=${text}` : `https://wa.me/?text=${text}`;
+  window.open(url, "_blank", "noopener");
+}

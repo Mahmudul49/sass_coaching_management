@@ -28,6 +28,8 @@ export async function ensureIndexes(db: Db): Promise<void> {
     // students
     db.collection(Collections.students).createIndex({ tenantId: 1, classId: 1 }),
     db.collection(Collections.students).createIndex({ tenantId: 1, active: 1 }),
+    // Operational modules load active students of a class (payment/attendance/report).
+    db.collection(Collections.students).createIndex({ tenantId: 1, classId: 1, active: 1 }),
 
     // attendance
     db
@@ -49,6 +51,8 @@ export async function ensureIndexes(db: Db): Promise<void> {
       .collection(Collections.payments)
       .createIndex({ tenantId: 1, classId: 1, year: 1, month: 1 }),
     db.collection(Collections.payments).createIndex({ tenantId: 1, studentId: 1 }),
+    // Report range + status filter (year*100+month scan within a tenant/status).
+    db.collection(Collections.payments).createIndex({ tenantId: 1, status: 1, year: 1, month: 1 }),
     // One payment record per student per month/year — upsert target.
     db
       .collection(Collections.payments)

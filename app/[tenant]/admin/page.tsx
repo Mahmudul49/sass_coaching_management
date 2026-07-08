@@ -40,7 +40,7 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
       <Typography variant="h5">ড্যাশবোর্ড</Typography>
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} useFlexGap flexWrap="wrap">
-        <StatCard label="সক্রিয় ছাত্র" value={toBnDigits(stats.activeStudents)} icon={<GroupsIcon />} />
+        <StatCard label="সক্রিয় শিক্ষার্থী" value={toBnDigits(stats.activeStudents)} icon={<GroupsIcon />} />
         <StatCard
           label={`${monthName(month)} মাসের আদায়`}
           value={taka(stats.collection)}

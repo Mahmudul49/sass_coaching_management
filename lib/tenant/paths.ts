@@ -29,9 +29,11 @@ export function tenantLoginPath(slug: string): string {
 
 export function tenantSiteUrl(slug: string, rootDomain: string): string {
   const protocol = rootDomain.includes("localhost") ? "http" : "https";
-  return `${protocol}://${rootDomain}/${slug}`;
+  // Point at the tenant's login page. If the admin is already logged in, that
+  // page redirects to /{slug}/admin; otherwise it shows the login form.
+  return `${protocol}://${rootDomain}/${slug}/login`;
 }
 
 export function tenantSiteLabel(slug: string, rootDomain: string): string {
-  return `${rootDomain}/${slug}`;
+  return `${rootDomain}/${slug}/login`;
 }

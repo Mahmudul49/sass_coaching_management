@@ -24,8 +24,8 @@ export default async function AttendancePage({
         <Typography variant="h5">উপস্থিতি</Typography>
         <Card sx={{ p: 2 }}>
           <EmptyState
-            title="আগে ক্লাস ও ছাত্র যোগ করুন"
-            description="উপস্থিতি নেওয়ার আগে ক্লাস ও ছাত্র থাকতে হবে।"
+            title="আগে ক্লাস ও শিক্ষার্থী যোগ করুন"
+            description="উপস্থিতি নেওয়ার আগে ক্লাস ও শিক্ষার্থী থাকতে হবে।"
           />
         </Card>
       </Stack>
@@ -37,7 +37,7 @@ export default async function AttendancePage({
   const date = sp.date || todayISO();
 
   const [students, savedMap] = await Promise.all([
-    listStudents(db, { classId }),
+    listStudents(db, { classId, activeOnly: true }),
     getAttendanceMap(db, classId, date),
   ]);
 

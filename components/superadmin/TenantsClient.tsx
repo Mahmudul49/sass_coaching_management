@@ -14,11 +14,18 @@ import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import Alert from "@mui/material/Alert";
 import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import AddIcon from "@mui/icons-material/Add";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import EditIcon from "@mui/icons-material/Edit";
+import { type GridColDef } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
+import ResponsiveTable from "@/components/ui/ResponsiveTable";
+import DataCard from "@/components/ui/DataCard";
+import BlockIcon from "@mui/icons-material/Block";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useToast } from "@/components/providers/ToastProvider";
-import { createTenant, setTenantActive } from "@/app/superadmin/actions";
+import { createTenant, setTenantActive, updateTenant } from "@/app/superadmin/actions";
 import type { TenantRow } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
 import { tenantSiteLabel, tenantSiteUrl } from "@/lib/tenant/paths";
@@ -32,6 +39,7 @@ export default function TenantsClient({
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<TenantRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const columns = useMemo<GridColDef<TenantRow>[]>(
@@ -56,7 +64,7 @@ export default function TenantsClient({
       { field: "adminPhone", headerName: "ফোন", width: 130 },
       {
         field: "studentCount",
-        headerName: "ছাত্র",
+        headerName: "শিক্ষার্থী",
         width: 90,
         valueFormatter: (v: number) => toBnDigits(v ?? 0),
       },
@@ -78,15 +86,22 @@ export default function TenantsClient({
         sortable: false,
         filterable: false,
         renderCell: (p) => (
-          <Button
-            size="small"
-            color={p.row.active ? "error" : "success"}
-            variant="outlined"
-            disabled={pending}
-            onClick={() => toggle(p.row)}
-          >
-            {p.row.active ? "নিষ্ক্রিয়" : "সক্রিয়"}
-          </Button>
+          <>
+            <Tooltip title="সম্পাদনা">
+              <IconButton size="small" onClick={() => setEditing(p.row)}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Button
+              size="small"
+              color={p.row.active ? "error" : "success"}
+              variant="outlined"
+              disabled={pending}
+              onClick={() => toggle(p.row)}
+            >
+              {p.row.active ? "নিষ্ক্রিয়" : "সক্রিয়"}
+            </Button>
+          </>
         ),
       },
     ],
@@ -123,17 +138,55 @@ export default function TenantsClient({
           onAction={() => setOpen(true)}
         />
       ) : (
-        <Box sx={{ width: "100%" }}>
-          <DataGrid
-            autoHeight
-            rows={tenants}
-            columns={columns}
-            disableRowSelectionOnClick
-            initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-            pageSizeOptions={[10, 25, 50]}
-            sx={{ border: 0 }}
-          />
-        </Box>
+        <ResponsiveTable
+          rows={tenants}
+          columns={columns}
+          pageSize={10}
+          pageSizeOptions={[10, 25, 50]}
+          gridMinWidth={780}
+          filterText={(t) => `${t.name} ${t.slug} ${t.adminName} ${t.adminPhone}`}
+          renderCard={(t) => (
+            <DataCard
+              title={t.name}
+              subtitle={
+                <Link href={tenantSiteUrl(t.slug, rootDomain)} target="_blank" rel="noopener">
+                  {tenantSiteLabel(t.slug, rootDomain)}
+                </Link>
+              }
+              right={
+                t.active ? (
+                  <Chip label="সক্রিয়" color="success" size="small" />
+                ) : (
+                  <Chip label="নিষ্ক্রিয়" size="small" />
+                )
+              }
+              fields={[
+                { label: "অ্যাডমিন", value: t.adminName },
+                { label: "ফোন", value: t.adminPhone },
+                { label: "শিক্ষার্থী", value: toBnDigits(t.studentCount ?? 0) },
+              ]}
+              actions={[
+                {
+                  label: "সম্পাদনা",
+                  icon: <EditIcon fontSize="small" />,
+                  onClick: () => setEditing(t),
+                },
+                t.active
+                  ? {
+                      label: "নিষ্ক্রিয় করুন",
+                      icon: <BlockIcon fontSize="small" />,
+                      danger: true,
+                      onClick: () => toggle(t),
+                    }
+                  : {
+                      label: "সক্রিয় করুন",
+                      icon: <CheckCircleIcon fontSize="small" />,
+                      onClick: () => toggle(t),
+                    },
+              ]}
+            />
+          )}
+        />
       )}
 
       <CreateTenantDialog
@@ -141,7 +194,99 @@ export default function TenantsClient({
         onClose={() => setOpen(false)}
         rootDomain={rootDomain}
       />
+      <EditTenantDialog
+        tenant={editing}
+        onClose={() => setEditing(null)}
+        rootDomain={rootDomain}
+      />
     </Card>
+  );
+}
+
+function EditTenantDialog({
+  tenant,
+  onClose,
+  rootDomain,
+}: {
+  tenant: TenantRow | null;
+  onClose: () => void;
+  rootDomain: string;
+}) {
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", slug: "", adminName: "", phone: "", password: "" });
+
+  // Load the selected tenant's values whenever the dialog opens.
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+  if (tenant && tenant.id !== loadedId) {
+    setLoadedId(tenant.id);
+    setError(null);
+    setForm({
+      name: tenant.name,
+      slug: tenant.slug,
+      adminName: tenant.adminName,
+      phone: tenant.adminPhone,
+      password: "",
+    });
+  }
+  if (!tenant && loadedId !== null) setLoadedId(null);
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  function submit() {
+    if (!tenant) return;
+    setError(null);
+    start(async () => {
+      const res = await updateTenant(tenant.id, form);
+      if (res.ok) {
+        toast.success("সেন্টার আপডেট হয়েছে।");
+        onClose();
+      } else setError(res.error ?? "সমস্যা হয়েছে।");
+    });
+  }
+
+  return (
+    <Dialog open={!!tenant} onClose={pending ? undefined : onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>সেন্টার সম্পাদনা</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <TextField label="সেন্টার *" value={form.name} onChange={set("name")} />
+          <TextField
+            label="সাইট (slug) *"
+            value={form.slug}
+            onChange={set("slug")}
+            InputProps={{ startAdornment: <InputAdornment position="start">{rootDomain}/</InputAdornment> }}
+            helperText="সাইটের ঠিকানা পরিবর্তন হবে"
+          />
+          <TextField label="অ্যাডমিন *" value={form.adminName} onChange={set("adminName")} />
+          <TextField
+            label="ফোন *"
+            value={form.phone}
+            onChange={set("phone")}
+            inputProps={{ inputMode: "tel" }}
+          />
+          <TextField
+            label="নতুন পাসওয়ার্ড (ঐচ্ছিক)"
+            type="password"
+            value={form.password}
+            onChange={set("password")}
+            helperText="খালি রাখলে পাসওয়ার্ড অপরিবর্তিত থাকবে"
+            autoComplete="new-password"
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ p: 2 }}>
+        <Button variant="text" color="inherit" onClick={onClose} disabled={pending}>
+          বাতিল
+        </Button>
+        <Button onClick={submit} disabled={pending}>
+          {pending ? "সংরক্ষণ..." : "সংরক্ষণ"}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 

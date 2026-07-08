@@ -28,7 +28,7 @@ export default function SetupChecklist({ status }: { status: SetupStatus }) {
     { label: "ক্লাস যোগ করুন", done: status.hasClasses },
     { label: "শাখা যোগ করুন", done: status.hasSections },
     { label: "ফি স্ট্রাকচার সেট করুন", done: status.hasFees },
-    { label: "ছাত্র যোগ করুন", done: status.hasStudents },
+    { label: "শিক্ষার্থী যোগ করুন", done: status.hasStudents },
   ];
   const doneCount = steps.filter((s) => s.done).length;
   const pct = (doneCount / steps.length) * 100;

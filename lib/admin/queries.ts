@@ -10,6 +10,7 @@ import {
   type AttendanceDoc,
   type AttendanceStatus,
 } from "@/lib/db/collections";
+import { monthName, toBnDigits } from "@/lib/format";
 
 /** Plain (serialisable) row shapes handed to client components. */
 export type ClassRow = { id: string; name: string; order: number };
@@ -19,10 +20,11 @@ export type FeeRow = {
   classId: string;
   className: string;
   admissionFee: number;
+  admissionMonth: number;
   monthlyFee: number;
-  modelTestHalfYearly: { amount: number; month: number };
-  modelTestAnnual: { amount: number; month: number };
-  others: { label: string; amount: number }[];
+  modelTestHalfYearly: { amount: number; month: number; enabled: boolean };
+  modelTestAnnual: { amount: number; month: number; enabled: boolean };
+  others: { label: string; amount: number; month: number }[];
 };
 export type StudentRow = {
   id: string;
@@ -74,10 +76,23 @@ export async function listFees(db: ScopedDb): Promise<FeeRow[]> {
       classId: c.id,
       className: c.name,
       admissionFee: f?.admissionFee ?? 0,
+      admissionMonth: f?.admissionMonth ?? 1,
       monthlyFee: f?.monthlyFee ?? 0,
-      modelTestHalfYearly: f?.modelTestHalfYearly ?? { amount: 0, month: 6 },
-      modelTestAnnual: f?.modelTestAnnual ?? { amount: 0, month: 12 },
-      others: f?.others ?? [],
+      modelTestHalfYearly: {
+        amount: f?.modelTestHalfYearly?.amount ?? 0,
+        month: f?.modelTestHalfYearly?.month ?? 6,
+        enabled: f?.modelTestHalfYearly?.enabled !== false,
+      },
+      modelTestAnnual: {
+        amount: f?.modelTestAnnual?.amount ?? 0,
+        month: f?.modelTestAnnual?.month ?? 12,
+        enabled: f?.modelTestAnnual?.enabled !== false,
+      },
+      others: (f?.others ?? []).map((o) => ({
+        label: o.label,
+        amount: o.amount,
+        month: o.month ?? 1,
+      })),
     };
   });
 }
@@ -93,7 +108,7 @@ export async function getFeeForClass(
 
 export async function listStudents(
   db: ScopedDb,
-  filter: { classId?: string; sectionId?: string } = {}
+  filter: { classId?: string; sectionId?: string; activeOnly?: boolean } = {}
 ): Promise<StudentRow[]> {
   const [classes, sections] = await Promise.all([listClasses(db), listSections(db)]);
   const classMap = new Map(classes.map((c) => [c.id, c.name]));
@@ -102,6 +117,7 @@ export async function listStudents(
   const q: Record<string, unknown> = {};
   if (filter.classId) q.classId = filter.classId;
   if (filter.sectionId) q.sectionId = filter.sectionId;
+  if (filter.activeOnly) q.active = true; // hide inactive from operational modules
 
   const docs = (await db
     .collection<StudentDoc>(Collections.students)
@@ -202,17 +218,31 @@ export async function buildPaymentRows(
 
   const otherKey = (label: string) => `other:${label}`;
 
+  // A month-bound fee applies when its month matches (undefined month = legacy,
+  // meaning every month).
+  const applies = (m?: number) => m === undefined || m === month;
+
   // Column template from the fee structure (components that apply this month).
   const template: PayColumn[] = [];
   if (fee) {
-    if (fee.admissionFee >= 0) template.push({ key: "admission", label: "ভর্তি ফি", type: "admission" });
+    if (fee.admissionFee > 0 && applies(fee.admissionMonth))
+      template.push({ key: "admission", label: "ভর্তি ফি", type: "admission" });
     template.push({ key: "monthly", label: "মাসিক ফি", type: "monthly" });
-    if (fee.modelTestHalfYearly?.amount > 0 && fee.modelTestHalfYearly.month === month)
+    if (
+      fee.modelTestHalfYearly?.enabled !== false &&
+      fee.modelTestHalfYearly?.amount > 0 &&
+      fee.modelTestHalfYearly.month === month
+    )
       template.push({ key: "model_half", label: "ষান্মাসিক মডেল টেস্ট", type: "model_half" });
-    if (fee.modelTestAnnual?.amount > 0 && fee.modelTestAnnual.month === month)
+    if (
+      fee.modelTestAnnual?.enabled !== false &&
+      fee.modelTestAnnual?.amount > 0 &&
+      fee.modelTestAnnual.month === month
+    )
       template.push({ key: "model_annual", label: "বার্ষিক মডেল টেস্ট", type: "model_annual" });
     for (const o of fee.others ?? [])
-      template.push({ key: otherKey(o.label), label: o.label, type: "other" });
+      if (applies(o.month))
+        template.push({ key: otherKey(o.label), label: o.label, type: "other" });
   } else {
     template.push({ key: "monthly", label: "মাসিক ফি", type: "monthly" });
   }
@@ -283,51 +313,179 @@ export type DueRow = {
   studentId: string;
   name: string;
   roll: string;
+  phone: string;
   className: string;
   sectionName: string;
+  year: number;
+  month: number;
+  period: string; // e.g. "জুলাই ২০২৬"
+  components: { label: string; amount: number }[];
   total: number;
   paid: number;
   due: number;
   status: "paid" | "partial" | "unpaid";
 };
 
+/** Convert a YYYY-MM-DD string to a year*100+month key; null if unparseable. */
+function ymKeyFromDate(date: string): number | null {
+  const m = /^(\d{4})-(\d{2})-\d{2}$/.exec(date);
+  if (!m) return null;
+  return Number(m[1]) * 100 + Number(m[2]);
+}
+
+/** Enumerate every {year, month} from ym key `lo` to `hi` inclusive. */
+function monthsInRange(lo: number, hi: number): { year: number; month: number }[] {
+  const out: { year: number; month: number }[] = [];
+  let y = Math.floor(lo / 100);
+  let m = lo % 100;
+  if (m < 1 || m > 12) return out;
+  while (y * 100 + m <= hi && out.length < 240) {
+    out.push({ year: y, month: m });
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * Fee-structure-driven due report. For every month in the From–To range and
+ * every active student, it computes the expected fee from the class's fee
+ * structure (monthly + model tests that fall in that month + other recurring
+ * fees; admission is a one-time fee and excluded from the monthly projection),
+ * overlays the actual payment record if one exists, and derives the status.
+ * So a student who never paid still shows up as বাকি (unpaid) with the full
+ * expected amount due. Filtered by class and status.
+ */
 export async function getDueReport(
   db: ScopedDb,
-  filter: { classId?: string; year: number; month: number; status?: string }
+  filter: { classId?: string; from: string; to: string; status?: string }
 ): Promise<DueRow[]> {
-  const q: Record<string, unknown> = { year: filter.year, month: filter.month };
-  if (filter.classId) q.classId = filter.classId;
-  if (filter.status && ["paid", "partial", "unpaid"].includes(filter.status))
-    q.status = filter.status;
+  const fromYM = ymKeyFromDate(filter.from) ?? 0;
+  const toYM = ymKeyFromDate(filter.to) ?? 999912;
+  const [lo, hi] = fromYM <= toYM ? [fromYM, toYM] : [toYM, fromYM];
+  const months = monthsInRange(lo, hi);
+  const statusFilter =
+    filter.status && ["paid", "partial", "unpaid"].includes(filter.status)
+      ? filter.status
+      : "";
 
-  const [payments, classes, sections, students] = await Promise.all([
-    db.collection<PaymentDoc>(Collections.payments).findArray(q) as Promise<PaymentDoc[]>,
+  // Load ALL students (active + inactive) in the class: inactive students keep
+  // their payment history in reports, but only active students get projected
+  // (unpaid) dues for months without a payment record.
+  const studentQuery: Record<string, unknown> = {};
+  if (filter.classId) studentQuery.classId = filter.classId;
+
+  const paymentQuery: Record<string, unknown> = {
+    $expr: {
+      $and: [
+        { $gte: [{ $add: [{ $multiply: ["$year", 100] }, "$month"] }, lo] },
+        { $lte: [{ $add: [{ $multiply: ["$year", 100] }, "$month"] }, hi] },
+      ],
+    },
+  };
+  if (filter.classId) paymentQuery.classId = filter.classId;
+
+  const [classes, sections, students, fees, payments] = await Promise.all([
     listClasses(db),
     listSections(db),
-    db.collection<StudentDoc>(Collections.students).findArray({}) as Promise<StudentDoc[]>,
+    db.collection<StudentDoc>(Collections.students).findArray(studentQuery) as Promise<StudentDoc[]>,
+    db.collection<FeeStructureDoc>(Collections.feeStructure).findArray({}) as Promise<FeeStructureDoc[]>,
+    db.collection<PaymentDoc>(Collections.payments).findArray(paymentQuery) as Promise<PaymentDoc[]>,
   ]);
   const classMap = new Map(classes.map((c) => [c.id, c.name]));
   const sectionMap = new Map(sections.map((s) => [s.id, s.name]));
-  const studentMap = new Map(students.map((s) => [s._id.toString(), s]));
+  const feeByClass = new Map(fees.map((f) => [f.classId, f]));
+  const payKey = (studentId: string, year: number, month: number) => `${studentId}:${year}:${month}`;
+  const payMap = new Map(payments.map((p) => [payKey(p.studentId, p.year, p.month), p]));
 
-  return payments
-    .map((p) => {
-      const s = studentMap.get(p.studentId);
-      const due = Math.max(0, p.totalAmount - p.paidAmount);
-      return {
-        id: p._id.toString(),
-        studentId: p.studentId,
-        name: s?.name ?? "—",
-        roll: s?.roll ?? "",
-        className: classMap.get(p.classId) ?? "—",
-        sectionName: s ? sectionMap.get(s.sectionId) ?? "—" : "—",
-        total: p.totalAmount,
-        paid: p.paidAmount,
-        due,
-        status: p.status,
-      };
-    })
-    .sort((a, b) => a.className.localeCompare(b.className) || a.roll.localeCompare(b.roll));
+  // Expected fee components for a class in a given month. Each month-bound fee
+  // (admission, model tests, others) applies only in its configured month;
+  // undefined month = legacy "every month".
+  function expectedComponents(fee: FeeStructureDoc | undefined, month: number) {
+    const comps: { label: string; amount: number }[] = [];
+    if (!fee) return comps;
+    const applies = (m?: number) => m === undefined || m === month;
+    if (fee.admissionFee > 0 && applies(fee.admissionMonth))
+      comps.push({ label: "ভর্তি ফি", amount: fee.admissionFee });
+    if (fee.monthlyFee > 0) comps.push({ label: "মাসিক ফি", amount: fee.monthlyFee });
+    if (
+      fee.modelTestHalfYearly?.enabled !== false &&
+      fee.modelTestHalfYearly?.amount > 0 &&
+      fee.modelTestHalfYearly.month === month
+    )
+      comps.push({ label: "ষান্মাসিক মডেল টেস্ট", amount: fee.modelTestHalfYearly.amount });
+    if (
+      fee.modelTestAnnual?.enabled !== false &&
+      fee.modelTestAnnual?.amount > 0 &&
+      fee.modelTestAnnual.month === month
+    )
+      comps.push({ label: "বার্ষিক মডেল টেস্ট", amount: fee.modelTestAnnual.amount });
+    for (const o of fee.others ?? [])
+      if (o.amount > 0 && applies(o.month)) comps.push({ label: o.label, amount: o.amount });
+    return comps;
+  }
+
+  const rows: DueRow[] = [];
+  for (const s of students) {
+    const sid = s._id.toString();
+    const fee = feeByClass.get(s.classId);
+    for (const { year, month } of months) {
+      const paid = payMap.get(payKey(sid, year, month));
+
+      let total: number;
+      let paidAmount: number;
+      let components: { label: string; amount: number }[];
+      let status: "paid" | "partial" | "unpaid";
+
+      if (paid) {
+        // A real payment record exists — use the actual billed/paid values.
+        total = paid.totalAmount;
+        paidAmount = paid.paidAmount;
+        components = (paid.components ?? []).map((c) => ({ label: c.label, amount: c.amount }));
+        status = paid.status;
+      } else {
+        // No payment record. Only project expected dues for ACTIVE students;
+        // inactive students appear only via their historical payment records.
+        if (s.active === false) continue;
+        components = expectedComponents(fee, month);
+        total = components.reduce((sum, c) => sum + c.amount, 0);
+        if (total <= 0) continue; // nothing is due this month for this class
+        paidAmount = 0;
+        status = "unpaid";
+      }
+
+      if (statusFilter && status !== statusFilter) continue;
+
+      rows.push({
+        id: paid ? paid._id.toString() : `${sid}-${year}-${month}`,
+        studentId: sid,
+        name: s.name,
+        roll: s.roll,
+        phone: s.phone ?? "",
+        className: classMap.get(s.classId) ?? "—",
+        sectionName: sectionMap.get(s.sectionId) ?? "—",
+        year,
+        month,
+        period: `${monthName(month)} ${toBnDigits(year)}`,
+        components,
+        total,
+        paid: paidAmount,
+        due: Math.max(0, total - paidAmount),
+        status,
+      });
+    }
+  }
+
+  return rows.sort(
+    (a, b) =>
+      a.year - b.year ||
+      a.month - b.month ||
+      a.className.localeCompare(b.className) ||
+      a.roll.localeCompare(b.roll)
+  );
 }
 
 export type DashboardStats = {
