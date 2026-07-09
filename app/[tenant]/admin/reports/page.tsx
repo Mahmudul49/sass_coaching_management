@@ -5,6 +5,7 @@ import { listClasses, getDueReport, getAttendanceReport } from "@/lib/admin/quer
 import DueReportClient from "@/components/admin/DueReportClient";
 import AttendanceReportClient from "@/components/admin/AttendanceReportClient";
 import ReportTabs from "@/components/admin/ReportTabs";
+import { getT } from "@/lib/i18n/server";
 import { currentYear, todayISO } from "@/lib/format";
 
 export default async function ReportsPage({
@@ -23,6 +24,7 @@ export default async function ReportsPage({
   const { tenant } = await params;
   const ctx = await requireAdmin(tenant);
   const { db } = ctx;
+  const t = await getT();
   const classes = await listClasses(db);
   const sp = await searchParams;
 
@@ -32,7 +34,7 @@ export default async function ReportsPage({
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h5">রিপোর্ট</Typography>
+      <Typography variant="h5">{t("nav_reports")}</Typography>
       <ReportTabs tab={tab} />
 
       {tab === "attendance" ? (

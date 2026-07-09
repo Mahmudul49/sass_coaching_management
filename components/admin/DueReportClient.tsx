@@ -18,6 +18,8 @@ import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import DataCard from "@/components/ui/DataCard";
 import PaymentMatrix from "./PaymentMatrix";
 import { exportAoa } from "@/lib/excel";
+import { useI18n } from "@/components/providers/I18nProvider";
+import type { MessageKey } from "@/lib/i18n/dictionaries";
 import type { ClassRow, DueRow } from "@/lib/admin/queries";
 import { taka, toBnDigits } from "@/lib/format";
 
@@ -28,10 +30,10 @@ const TYPE_LABEL: Record<string, string> = {
   unpaid: "বাকি (Unpaid)",
 };
 
-function statusChip(status: DueRow["status"]) {
-  if (status === "paid") return <Chip size="small" color="success" label="পরিশোধিত" />;
-  if (status === "partial") return <Chip size="small" color="warning" label="আংশিক" />;
-  return <Chip size="small" color="error" label="বাকি" />;
+function statusChip(status: DueRow["status"], t: (k: MessageKey) => string) {
+  if (status === "paid") return <Chip size="small" color="success" label={t("c_paid")} />;
+  if (status === "partial") return <Chip size="small" color="warning" label={t("c_partial")} />;
+  return <Chip size="small" color="error" label={t("r_unpaid")} />;
 }
 
 export default function DueReportClient({
@@ -53,6 +55,7 @@ export default function DueReportClient({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useI18n();
   const [view, setView] = useState<"list" | "matrix">("list");
 
   function navigate(next: { classId?: string; from?: string; to?: string; status?: string }) {
@@ -69,22 +72,22 @@ export default function DueReportClient({
 
   const columns = useMemo<GridColDef<DueRow>[]>(
     () => [
-      { field: "period", headerName: "মাস", width: 130 },
-      { field: "roll", headerName: "রোল", width: 80 },
-      { field: "name", headerName: "নাম", flex: 1, minWidth: 140 },
-      { field: "className", headerName: "ক্লাস", width: 110 },
-      { field: "sectionName", headerName: "শাখা", width: 80 },
-      { field: "total", headerName: "মোট", width: 105, valueFormatter: (v: number) => taka(Number(v) || 0) },
-      { field: "paid", headerName: "পরিশোধিত", width: 115, valueFormatter: (v: number) => taka(Number(v) || 0) },
-      { field: "due", headerName: "বাকি", width: 105, valueFormatter: (v: number) => taka(Number(v) || 0) },
+      { field: "period", headerName: t("c_month"), width: 130 },
+      { field: "roll", headerName: t("c_roll"), width: 80 },
+      { field: "name", headerName: t("c_name"), flex: 1, minWidth: 140 },
+      { field: "className", headerName: t("c_class"), width: 110 },
+      { field: "sectionName", headerName: t("c_section"), width: 80 },
+      { field: "total", headerName: t("c_total"), width: 105, valueFormatter: (v: number) => taka(Number(v) || 0) },
+      { field: "paid", headerName: t("c_paid"), width: 115, valueFormatter: (v: number) => taka(Number(v) || 0) },
+      { field: "due", headerName: t("c_due"), width: 105, valueFormatter: (v: number) => taka(Number(v) || 0) },
       {
         field: "status",
-        headerName: "অবস্থা",
+        headerName: t("c_status"),
         width: 110,
-        renderCell: (p: GridRenderCellParams<DueRow>) => statusChip(p.row.status),
+        renderCell: (p: GridRenderCellParams<DueRow>) => statusChip(p.row.status, t),
       },
     ],
-    []
+    [t]
   );
 
   // Build a DBBL "Tuition Fee Collection"-style sheet: a meta header block,
@@ -150,13 +153,13 @@ export default function DueReportClient({
   const renderCard = (r: DueRow) => (
     <DataCard
       title={r.name}
-      subtitle={`${r.period} · ${r.className} ${r.sectionName} · রোল ${toBnDigits(r.roll)}`}
-      right={statusChip(r.status)}
+      subtitle={`${r.period} · ${r.className} ${r.sectionName} · ${t("c_roll")} ${toBnDigits(r.roll)}`}
+      right={statusChip(r.status, t)}
       fields={[
-        { label: "মোট", value: taka(r.total) },
-        { label: "পরিশোধিত", value: taka(r.paid) },
+        { label: t("c_total"), value: taka(r.total) },
+        { label: t("c_paid"), value: taka(r.paid) },
         {
-          label: "বাকি",
+          label: t("c_due"),
           value: (
             <Box component="span" sx={{ color: r.due > 0 ? "error.main" : "inherit" }}>
               {taka(r.due)}
@@ -174,7 +177,7 @@ export default function DueReportClient({
           <Stack direction={{ xs: "column", md: "row" }} spacing={2} useFlexGap flexWrap="wrap">
             <TextField
               type="date"
-              label="শুরু (From)"
+              label={t("r_from")}
               value={from}
               onChange={(e) => navigate({ from: e.target.value })}
               InputLabelProps={{ shrink: true }}
@@ -182,7 +185,7 @@ export default function DueReportClient({
             />
             <TextField
               type="date"
-              label="শেষ (To)"
+              label={t("r_to")}
               value={to}
               onChange={(e) => navigate({ to: e.target.value })}
               InputLabelProps={{ shrink: true }}
@@ -190,12 +193,12 @@ export default function DueReportClient({
             />
             <TextField
               select
-              label="ক্লাস"
+              label={t("c_class")}
               value={classId}
               onChange={(e) => navigate({ classId: e.target.value })}
               sx={{ minWidth: 140 }}
             >
-              <MenuItem value="">সব ক্লাস</MenuItem>
+              <MenuItem value="">{t("r_all_classes")}</MenuItem>
               {classes.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
                   {c.name}
@@ -204,15 +207,15 @@ export default function DueReportClient({
             </TextField>
             <TextField
               select
-              label="অবস্থা"
+              label={t("c_status")}
               value={status}
               onChange={(e) => navigate({ status: e.target.value })}
               sx={{ minWidth: 120 }}
             >
-              <MenuItem value="">সব</MenuItem>
-              <MenuItem value="paid">পরিশোধিত</MenuItem>
-              <MenuItem value="partial">আংশিক</MenuItem>
-              <MenuItem value="unpaid">বাকি</MenuItem>
+              <MenuItem value="">{t("r_all")}</MenuItem>
+              <MenuItem value="paid">{t("c_paid")}</MenuItem>
+              <MenuItem value="partial">{t("c_partial")}</MenuItem>
+              <MenuItem value="unpaid">{t("r_unpaid")}</MenuItem>
             </TextField>
           </Stack>
         </CardContent>
@@ -220,15 +223,15 @@ export default function DueReportClient({
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} useFlexGap flexWrap="wrap" alignItems={{ sm: "center" }}>
         <ToggleButtonGroup size="small" exclusive value={view} onChange={(_e, v) => v && setView(v)}>
-          <ToggleButton value="list">তালিকা</ToggleButton>
-          <ToggleButton value="matrix">ম্যাট্রিক্স</ToggleButton>
+          <ToggleButton value="list">{t("r_view_list")}</ToggleButton>
+          <ToggleButton value="matrix">{t("r_view_matrix")}</ToggleButton>
         </ToggleButtonGroup>
-        <Chip color="error" sx={{ fontSize: 15, py: 2.2, px: 1, fontWeight: 700 }} label={`মোট বকেয়া: ${taka(totalDue)}`} />
-        <Chip color="success" sx={{ fontSize: 15, py: 2.2, px: 1, fontWeight: 700 }} label={`মোট আদায়: ${taka(totalPaid)}`} />
+        <Chip color="error" sx={{ fontSize: 15, py: 2.2, px: 1, fontWeight: 700 }} label={`${t("r_total_due")}: ${taka(totalDue)}`} />
+        <Chip color="success" sx={{ fontSize: 15, py: 2.2, px: 1, fontWeight: 700 }} label={`${t("r_total_collected")}: ${taka(totalPaid)}`} />
         <Box sx={{ flex: 1 }} />
         {view === "list" && (
           <Button startIcon={<DownloadIcon />} onClick={downloadExcel} disabled={rows.length === 0} sx={{ width: { xs: "100%", sm: "auto" } }}>
-            Excel ডাউনলোড
+            {t("r_excel_download")}
           </Button>
         )}
       </Stack>
@@ -237,7 +240,7 @@ export default function DueReportClient({
         {view === "matrix" ? (
           <PaymentMatrix rows={rows} centerName={centerName} />
         ) : rows.length === 0 ? (
-          <EmptyState title="কোনো রেকর্ড নেই" description="এই সময়সীমার মধ্যে কোনো পেমেন্ট রেকর্ড নেই।" />
+          <EmptyState title={t("r_no_records")} description={t("r_no_records_desc")} />
         ) : (
           <ResponsiveTable
             rows={rows}
