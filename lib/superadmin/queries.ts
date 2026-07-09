@@ -116,7 +116,18 @@ export async function searchMarketingStudents(
   const [students, total, tenants, classes, sections] = await Promise.all([
     db
       .collection<StudentDoc>(Collections.students)
-      .find(match)
+      .find(match, {
+        projection: {
+          tenantId: 1,
+          name: 1,
+          roll: 1,
+          phone: 1,
+          classId: 1,
+          sectionId: 1,
+          active: 1,
+          createdAt: 1,
+        },
+      })
       .sort({ createdAt: -1 })
       .limit(MARKETING_STUDENT_LIMIT)
       .toArray(),

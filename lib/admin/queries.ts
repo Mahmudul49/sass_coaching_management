@@ -121,7 +121,11 @@ export async function listStudents(
 
   const docs = (await db
     .collection<StudentDoc>(Collections.students)
-    .findArray(q, { sort: { roll: 1 } })) as StudentDoc[];
+    .findArray(q, {
+      sort: { roll: 1 },
+      // Projection: fetch only fields the UI needs — cuts Atlas transfer + memory.
+      projection: { classId: 1, sectionId: 1, name: 1, roll: 1, phone: 1, active: 1 },
+    })) as StudentDoc[];
 
   return docs.map((s) => ({
     id: s._id.toString(),
@@ -453,9 +457,26 @@ export async function getDueReport(
   const [classes, sections, students, fees, payments] = await Promise.all([
     listClasses(db),
     listSections(db),
-    db.collection<StudentDoc>(Collections.students).findArray(studentQuery) as Promise<StudentDoc[]>,
+    db
+      .collection<StudentDoc>(Collections.students)
+      .findArray(studentQuery, {
+        projection: { name: 1, roll: 1, phone: 1, classId: 1, sectionId: 1, active: 1 },
+      }) as Promise<StudentDoc[]>,
     db.collection<FeeStructureDoc>(Collections.feeStructure).findArray({}) as Promise<FeeStructureDoc[]>,
-    db.collection<PaymentDoc>(Collections.payments).findArray(paymentQuery) as Promise<PaymentDoc[]>,
+    db
+      .collection<PaymentDoc>(Collections.payments)
+      .findArray(paymentQuery, {
+        projection: {
+          studentId: 1,
+          classId: 1,
+          year: 1,
+          month: 1,
+          components: 1,
+          totalAmount: 1,
+          paidAmount: 1,
+          status: 1,
+        },
+      }) as Promise<PaymentDoc[]>,
   ]);
   const classMap = new Map(classes.map((c) => [c.id, c.name]));
   const sectionMap = new Map(sections.map((s) => [s.id, s.name]));
