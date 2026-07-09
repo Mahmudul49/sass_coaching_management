@@ -306,9 +306,21 @@ export default function PaymentsClient({
   return (
     <Stack spacing={2}>
       <Card>
-        <CardContent>
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <TextField select label={t("c_class")} value={classId} onChange={(e) => navigate({ classId: e.target.value })}>
+        <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1.5,
+              gridTemplateColumns: { xs: "1fr 1fr", sm: "2fr 1fr 1fr" },
+            }}
+          >
+            <TextField
+              select
+              label={t("c_class")}
+              value={classId}
+              onChange={(e) => navigate({ classId: e.target.value })}
+              sx={{ gridColumn: { xs: "1 / -1", sm: "auto" } }}
+            >
               {classes.map((c) => (
                 <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
               ))}
@@ -323,7 +335,7 @@ export default function PaymentsClient({
                 <MenuItem key={y} value={y}>{toBnDigits(y)}</MenuItem>
               ))}
             </TextField>
-          </Stack>
+          </Box>
         </CardContent>
       </Card>
 
@@ -336,20 +348,25 @@ export default function PaymentsClient({
           {/* Mobile: progress summary + quick search + student cards */}
           <Box sx={{ display: { xs: "block", md: "none" } }}>
             <Card sx={{ mb: 1.5 }}>
-              <CardContent sx={{ py: 1.5 }}>
-                <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    {t("pay_collected")} {taka(summary.collected)} / {taka(summary.expected)}
-                  </Typography>
-                  <Typography variant="body2" fontWeight={700}>
+              <CardContent sx={{ py: 1.75 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      {t("pay_collected")}
+                    </Typography>
+                    <Typography fontWeight={700} sx={{ fontSize: "0.95rem", fontVariantNumeric: "tabular-nums" }} noWrap>
+                      {taka(summary.collected)} / {taka(summary.expected)}
+                    </Typography>
+                  </Box>
+                  <Typography variant="h5" fontWeight={800} color="success.main" sx={{ lineHeight: 1 }}>
                     {toBnDigits(collectedPct)}%
                   </Typography>
                 </Stack>
-                <LinearProgress variant="determinate" value={collectedPct} color="success" sx={{ height: 8, borderRadius: 4 }} />
-                <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" color="success" label={`${t("c_paid")} ${toBnDigits(summary.paid)}`} />
-                  <Chip size="small" color="warning" label={`${t("c_partial")} ${toBnDigits(summary.partial)}`} />
-                  <Chip size="small" color="error" label={`${t("c_due")} ${toBnDigits(summary.unpaid)}`} />
+                <LinearProgress variant="determinate" value={collectedPct} color="success" sx={{ height: 10, borderRadius: 5 }} />
+                <Stack direction="row" spacing={1} sx={{ mt: 1.25 }} useFlexGap>
+                  <Chip size="small" color="success" variant="outlined" label={`${t("c_paid")} ${toBnDigits(summary.paid)}`} sx={{ flex: 1 }} />
+                  <Chip size="small" color="warning" variant="outlined" label={`${t("c_partial")} ${toBnDigits(summary.partial)}`} sx={{ flex: 1 }} />
+                  <Chip size="small" color="error" variant="outlined" label={`${t("c_due")} ${toBnDigits(summary.unpaid)}`} sx={{ flex: 1 }} />
                 </Stack>
                 <Button
                   fullWidth
@@ -358,7 +375,7 @@ export default function PaymentsClient({
                   color="success"
                   startIcon={<DoneAllIcon />}
                   onClick={markAllFull}
-                  sx={{ mt: 1.25 }}
+                  sx={{ mt: 1.5 }}
                 >
                   {t("pay_mark_all_full")}
                 </Button>
@@ -375,32 +392,49 @@ export default function PaymentsClient({
               InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
             />
 
-            <Stack spacing={1.25}>
+            <Stack spacing={1.5}>
             {mobileRows.map((row) => {
               const total = rowTotal(row);
               const paid = Number(row.paidAmount) || 0;
+              const isFull = total > 0 && paid >= total;
+              const due = Math.max(0, total - paid);
               return (
                 <Card
                   key={row.id}
-                  sx={{ borderRadius: 3, overflow: "hidden", boxShadow: "0 2px 12px -6px rgba(18,36,31,0.25)" }}
+                  sx={{
+                    borderRadius: 3,
+                    overflow: "hidden",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    boxShadow: "0 6px 22px -12px rgba(18,36,31,0.28)",
+                  }}
                 >
                   {/* Header strip */}
                   <Box
                     sx={{
-                      px: 1.75,
-                      py: 1.25,
+                      px: 2,
+                      py: 1.5,
                       display: "flex",
                       alignItems: "center",
-                      gap: 1.25,
-                      bgcolor: "primary.main",
+                      gap: 1.5,
+                      background: "linear-gradient(135deg, #0A5A4E 0%, #0F7A6B 100%)",
                       color: "#fff",
                     }}
                   >
-                    <Avatar sx={{ bgcolor: "rgba(255,255,255,0.22)", color: "#fff", fontWeight: 700, width: 40, height: 40 }}>
+                    <Avatar
+                      sx={{
+                        bgcolor: "rgba(255,255,255,0.20)",
+                        color: "#fff",
+                        fontWeight: 700,
+                        width: 44,
+                        height: 44,
+                        border: "2px solid rgba(255,255,255,0.35)",
+                      }}
+                    >
                       {row.name?.trim()?.[0] ?? "?"}
                     </Avatar>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography fontWeight={700} noWrap>{row.name}</Typography>
+                      <Typography fontWeight={700} noWrap sx={{ fontSize: "1.05rem" }}>{row.name}</Typography>
                       <Typography variant="caption" sx={{ opacity: 0.9 }}>
                         {t("c_roll")} {toBnDigits(row.roll)} · {t("c_section")} {row.sectionName}
                       </Typography>
@@ -408,30 +442,43 @@ export default function PaymentsClient({
                     {statusChip(total, paid, t)}
                   </Box>
 
-                  <CardContent sx={{ p: 1.75, "&:last-child": { pb: 1.75 } }}>
-                    {/* Summary: total / paid / due */}
+                  <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+                    {/* Summary: total / paid / due — soft stat pills that wrap, never clip */}
                     <Box
                       sx={{
                         display: "grid",
-                        gridTemplateColumns: "1fr 1fr 1fr",
-                        textAlign: "center",
-                        borderRadius: 2,
-                        overflow: "hidden",
-                        border: "1px solid",
-                        borderColor: "divider",
-                        mb: 1.5,
+                        gridTemplateColumns: "repeat(3, 1fr)",
+                        gap: 1,
+                        mb: 1.75,
                       }}
                     >
                       {[
-                        { l: t("c_total"), v: taka(total), c: "text.primary" },
-                        { l: t("c_paid"), v: taka(paid), c: "success.main" },
-                        { l: t("c_due"), v: taka(Math.max(0, total - paid)), c: total - paid > 0 ? "error.main" : "text.secondary" },
-                      ].map((s, i) => (
-                        <Box key={s.l} sx={{ py: 1, borderLeft: i ? "1px solid" : 0, borderColor: "divider" }}>
-                          <Typography variant="caption" color="text.secondary" display="block">
+                        { l: t("c_total"), v: taka(total), c: "text.primary", bg: "rgba(18,36,31,0.04)", bd: "divider" },
+                        { l: t("c_paid"), v: taka(paid), c: "success.main", bg: "rgba(22,163,74,0.10)", bd: "rgba(22,163,74,0.25)" },
+                        {
+                          l: t("c_due"),
+                          v: taka(due),
+                          c: due > 0 ? "error.main" : "text.secondary",
+                          bg: due > 0 ? "rgba(220,38,38,0.08)" : "rgba(18,36,31,0.04)",
+                          bd: due > 0 ? "rgba(220,38,38,0.22)" : "divider",
+                        },
+                      ].map((s) => (
+                        <Box
+                          key={s.l}
+                          sx={{
+                            py: 1.1,
+                            px: 0.5,
+                            textAlign: "center",
+                            borderRadius: 2,
+                            bgcolor: s.bg,
+                            border: "1px solid",
+                            borderColor: s.bd,
+                          }}
+                        >
+                          <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600, display: "block", mb: 0.25 }}>
                             {s.l}
                           </Typography>
-                          <Typography fontWeight={800} sx={{ color: s.c, fontSize: "0.95rem" }} noWrap>
+                          <Typography sx={{ color: s.c, fontWeight: 800, fontSize: { xs: "0.9rem", sm: "1rem" }, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>
                             {s.v}
                           </Typography>
                         </Box>
@@ -441,13 +488,13 @@ export default function PaymentsClient({
                     {/* Quick full-pay: one tap collects the full computed amount */}
                     <Button
                       fullWidth
-                      variant={total > 0 && paid >= total ? "contained" : "outlined"}
+                      variant={isFull ? "contained" : "outlined"}
                       color="success"
                       startIcon={<DoneAllIcon />}
-                      onClick={() => setFullPaid(row, !(total > 0 && paid >= total))}
-                      sx={{ mb: 1 }}
+                      onClick={() => setFullPaid(row, !isFull)}
+                      sx={{ mb: 1.25, py: 1.15, borderRadius: 2.5, fontWeight: 700 }}
                     >
-                      {total > 0 && paid >= total ? t("pay_full_done") : t("pay_full")}
+                      {isFull ? t("pay_full_done") : t("pay_full")}
                     </Button>
 
                     {/* Collapsible itemized breakdown — expand only to override a sector */}
@@ -457,14 +504,18 @@ export default function PaymentsClient({
                       variant="text"
                       startIcon={<TuneIcon />}
                       onClick={() => toggleExpand(row.id)}
-                      sx={{ justifyContent: "flex-start", color: "text.secondary" }}
+                      sx={{ justifyContent: "flex-start", color: "text.secondary", mb: 0.5 }}
                     >
                       {expanded[row.id] ? t("pay_hide_fees") : t("pay_edit_fees")}
                     </Button>
                     <Collapse in={!!expanded[row.id]}>
-                      <Stack spacing={0.75} sx={{ mt: 0.5, mb: 1 }} divider={<Divider flexItem />}>
+                      <Stack
+                        spacing={0}
+                        sx={{ mb: 1.25, borderRadius: 2, border: "1px solid", borderColor: "divider", overflow: "hidden" }}
+                        divider={<Divider flexItem />}
+                      >
                         {template.map((c) => (
-                          <Stack key={c.key} direction="row" spacing={1} alignItems="center">
+                          <Stack key={c.key} direction="row" spacing={1} alignItems="center" sx={{ px: 1.25, py: 0.75 }}>
                             <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
                               {c.label}
                             </Typography>
@@ -475,7 +526,7 @@ export default function PaymentsClient({
                               onChange={(e) => setAmount(row.id, c.key, Number(e.target.value))}
                               inputProps={{ inputMode: "numeric", min: 0, style: { textAlign: "right" } }}
                               InputProps={{ startAdornment: <InputAdornment position="start">৳</InputAdornment> }}
-                              sx={{ width: 128 }}
+                              sx={{ width: 118, flexShrink: 0 }}
                             />
                           </Stack>
                         ))}
@@ -501,23 +552,24 @@ export default function PaymentsClient({
                       sx={{ mt: 1.25 }}
                     />
 
-                    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} alignItems="center">
+                    <Stack direction="row" spacing={1} sx={{ mt: 1.75 }} alignItems="center">
                       <Button
                         fullWidth
                         size="large"
                         startIcon={<SaveIcon />}
                         onClick={() => saveRow(row)}
                         disabled={pending}
+                        sx={{ borderRadius: 2.5 }}
                       >
                         {t("pay_save")}
                       </Button>
                       <Tooltip title={t("pay_receipt")}>
-                        <IconButton color="primary" onClick={() => receipt(row)} sx={{ border: "1px solid", borderColor: "divider" }}>
+                        <IconButton color="primary" onClick={() => receipt(row)} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, width: 48, height: 48 }}>
                           <PrintIcon />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="WhatsApp">
-                        <IconButton onClick={() => whatsapp(row)} sx={{ color: "#25D366", border: "1px solid", borderColor: "divider" }}>
+                        <IconButton onClick={() => whatsapp(row)} sx={{ color: "#25D366", border: "1px solid", borderColor: "divider", borderRadius: 2, width: 48, height: 48 }}>
                           <WhatsAppIcon />
                         </IconButton>
                       </Tooltip>
@@ -555,16 +607,24 @@ export default function PaymentsClient({
               position: "sticky",
               bottom: { xs: 72, md: 8 },
               zIndex: 3,
-              p: 1.5,
+              px: { xs: 1.5, sm: 2 },
+              py: 1.25,
               borderRadius: 3,
               display: "flex",
               alignItems: "center",
               gap: 1.5,
+              border: "1px solid",
+              borderColor: "divider",
             }}
           >
-            <Typography variant="body2" color="text.secondary" sx={{ display: { xs: "none", sm: "block" } }}>
-              {toBnDigits(rows.length)} {t("students_word")}
-            </Typography>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", sm: "block" } }}>
+                {toBnDigits(rows.length)} {t("students_word")}
+              </Typography>
+              <Typography variant="body2" fontWeight={700} noWrap sx={{ fontVariantNumeric: "tabular-nums" }}>
+                {toBnDigits(collectedPct)}% · {taka(summary.collected)}
+              </Typography>
+            </Box>
             <Box sx={{ flex: 1 }} />
             <Button startIcon={<SaveIcon />} onClick={saveAll} disabled={pending} size="large">
               {pending ? t("pay_saving") : t("pay_save_all")}
