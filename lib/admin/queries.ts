@@ -494,151 +494,165 @@ function monthsInRange(lo: number, hi: number): { year: number; month: number }[
 }
 
 /**
- * Fee-structure-driven due report. For every month in the From–To range and
- * every active student, it computes the expected fee from the class's fee
- * structure (monthly + model tests that fall in that month + other recurring
- * fees; admission is a one-time fee and excluded from the monthly projection),
- * overlays the actual payment record if one exists, and derives the status.
- * So a student who never paid still shows up as বাকি (unpaid) with the full
- * expected amount due. Filtered by class and status.
+ * Expected fee components for a class in a given month. Each month-bound fee
+ * (admission, model tests, others) applies only in its configured month;
+ * undefined month = legacy "every month".
  */
-export async function getDueReport(
+function expectedComponents(fee: FeeStructureDoc | undefined, month: number) {
+  const comps: { label: string; amount: number }[] = [];
+  if (!fee) return comps;
+  const applies = (m?: number) => m === undefined || m === month;
+  if (fee.admissionFee > 0 && applies(fee.admissionMonth))
+    comps.push({ label: "ভর্তি ফি", amount: fee.admissionFee });
+  if (fee.monthlyFee > 0) comps.push({ label: "মাসিক ফি", amount: fee.monthlyFee });
+  if (
+    fee.modelTestHalfYearly?.enabled !== false &&
+    fee.modelTestHalfYearly?.amount > 0 &&
+    fee.modelTestHalfYearly.month === month
+  )
+    comps.push({ label: "ষান্মাসিক মডেল টেস্ট", amount: fee.modelTestHalfYearly.amount });
+  if (
+    fee.modelTestAnnual?.enabled !== false &&
+    fee.modelTestAnnual?.amount > 0 &&
+    fee.modelTestAnnual.month === month
+  )
+    comps.push({ label: "বার্ষিক মডেল টেস্ট", amount: fee.modelTestAnnual.amount });
+  for (const o of fee.others ?? [])
+    if (o.amount > 0 && applies(o.month)) comps.push({ label: o.label, amount: o.amount });
+  return comps;
+}
+
+/** Shared, immutable context for building due rows across paged/summary/all. */
+type DueContext = {
+  lo: number;
+  hi: number;
+  months: { year: number; month: number }[];
+  statusFilter: string;
+  classMap: Map<string, string>;
+  sectionMap: Map<string, string>;
+  feeByClass: Map<string, FeeStructureDoc>;
+};
+
+const DUE_STUDENT_PROJECTION = { name: 1, roll: 1, phone: 1, classId: 1, sectionId: 1, active: 1 } as const;
+const DUE_PAYMENT_PROJECTION = {
+  studentId: 1,
+  classId: 1,
+  year: 1,
+  month: 1,
+  components: 1,
+  totalAmount: 1,
+  paidAmount: 1,
+  status: 1,
+} as const;
+
+function payKey(studentId: string, year: number, month: number) {
+  return `${studentId}:${year}:${month}`;
+}
+
+/** Build the master-data + range context once (small, tenant-scoped reads). */
+async function loadDueContext(
   db: ScopedDb,
-  filter: { classId?: string; from: string; to: string; status?: string }
-): Promise<DueRow[]> {
+  filter: { from: string; to: string; status?: string }
+): Promise<DueContext> {
   const fromYM = ymKeyFromDate(filter.from) ?? 0;
   const toYM = ymKeyFromDate(filter.to) ?? 999912;
   const [lo, hi] = fromYM <= toYM ? [fromYM, toYM] : [toYM, fromYM];
-  const months = monthsInRange(lo, hi);
   const statusFilter =
-    filter.status && ["paid", "partial", "unpaid"].includes(filter.status)
-      ? filter.status
-      : "";
+    filter.status && ["paid", "partial", "unpaid"].includes(filter.status) ? filter.status : "";
+  const [classes, sections, fees] = await Promise.all([
+    listClasses(db),
+    listSections(db),
+    db.collection<FeeStructureDoc>(Collections.feeStructure).findArray({}) as Promise<FeeStructureDoc[]>,
+  ]);
+  return {
+    lo,
+    hi,
+    months: monthsInRange(lo, hi),
+    statusFilter,
+    classMap: new Map(classes.map((c) => [c.id, c.name])),
+    sectionMap: new Map(sections.map((s) => [s.id, s.name])),
+    feeByClass: new Map(fees.map((f) => [f.classId, f])),
+  };
+}
 
-  // Load ALL students (active + inactive) in the class: inactive students keep
-  // their payment history in reports, but only active students get projected
-  // (unpaid) dues for months without a payment record.
-  const studentQuery: Record<string, unknown> = {};
-  if (filter.classId) studentQuery.classId = filter.classId;
-
-  const paymentQuery: Record<string, unknown> = {
+/** Load payment records in range for a specific set of students (bounded). */
+async function loadPaymentsForStudents(
+  db: ScopedDb,
+  ctx: DueContext,
+  studentIds: string[]
+): Promise<Map<string, PaymentDoc>> {
+  if (studentIds.length === 0) return new Map();
+  const q: Record<string, unknown> = {
+    studentId: { $in: studentIds },
     $expr: {
       $and: [
-        { $gte: [{ $add: [{ $multiply: ["$year", 100] }, "$month"] }, lo] },
-        { $lte: [{ $add: [{ $multiply: ["$year", 100] }, "$month"] }, hi] },
+        { $gte: [{ $add: [{ $multiply: ["$year", 100] }, "$month"] }, ctx.lo] },
+        { $lte: [{ $add: [{ $multiply: ["$year", 100] }, "$month"] }, ctx.hi] },
       ],
     },
   };
-  if (filter.classId) paymentQuery.classId = filter.classId;
+  const payments = (await db
+    .collection<PaymentDoc>(Collections.payments)
+    .findArray(q, { projection: DUE_PAYMENT_PROJECTION })) as PaymentDoc[];
+  return new Map(payments.map((p) => [payKey(p.studentId, p.year, p.month), p]));
+}
 
-  const [classes, sections, students, fees, payments] = await Promise.all([
-    listClasses(db),
-    listSections(db),
-    db
-      .collection<StudentDoc>(Collections.students)
-      .findArray(studentQuery, {
-        projection: { name: 1, roll: 1, phone: 1, classId: 1, sectionId: 1, active: 1 },
-      }) as Promise<StudentDoc[]>,
-    db.collection<FeeStructureDoc>(Collections.feeStructure).findArray({}) as Promise<FeeStructureDoc[]>,
-    db
-      .collection<PaymentDoc>(Collections.payments)
-      .findArray(paymentQuery, {
-        projection: {
-          studentId: 1,
-          classId: 1,
-          year: 1,
-          month: 1,
-          components: 1,
-          totalAmount: 1,
-          paidAmount: 1,
-          status: 1,
-        },
-      }) as Promise<PaymentDoc[]>,
-  ]);
-  const classMap = new Map(classes.map((c) => [c.id, c.name]));
-  const sectionMap = new Map(sections.map((s) => [s.id, s.name]));
-  const feeByClass = new Map(fees.map((f) => [f.classId, f]));
-  const payKey = (studentId: string, year: number, month: number) => `${studentId}:${year}:${month}`;
-  const payMap = new Map(payments.map((p) => [payKey(p.studentId, p.year, p.month), p]));
+/**
+ * Pure per-student expansion: for one student, emit a due row per month in the
+ * range (real payment overlaid if present; projected unpaid for active students
+ * without a record). Same logic for every consumer, so totals/list/export/matrix
+ * can never diverge.
+ */
+function dueRowsForStudent(s: StudentDoc, ctx: DueContext, payMap: Map<string, PaymentDoc>): DueRow[] {
+  const out: DueRow[] = [];
+  const sid = s._id.toString();
+  const fee = ctx.feeByClass.get(s.classId);
+  for (const { year, month } of ctx.months) {
+    const paid = payMap.get(payKey(sid, year, month));
 
-  // Expected fee components for a class in a given month. Each month-bound fee
-  // (admission, model tests, others) applies only in its configured month;
-  // undefined month = legacy "every month".
-  function expectedComponents(fee: FeeStructureDoc | undefined, month: number) {
-    const comps: { label: string; amount: number }[] = [];
-    if (!fee) return comps;
-    const applies = (m?: number) => m === undefined || m === month;
-    if (fee.admissionFee > 0 && applies(fee.admissionMonth))
-      comps.push({ label: "ভর্তি ফি", amount: fee.admissionFee });
-    if (fee.monthlyFee > 0) comps.push({ label: "মাসিক ফি", amount: fee.monthlyFee });
-    if (
-      fee.modelTestHalfYearly?.enabled !== false &&
-      fee.modelTestHalfYearly?.amount > 0 &&
-      fee.modelTestHalfYearly.month === month
-    )
-      comps.push({ label: "ষান্মাসিক মডেল টেস্ট", amount: fee.modelTestHalfYearly.amount });
-    if (
-      fee.modelTestAnnual?.enabled !== false &&
-      fee.modelTestAnnual?.amount > 0 &&
-      fee.modelTestAnnual.month === month
-    )
-      comps.push({ label: "বার্ষিক মডেল টেস্ট", amount: fee.modelTestAnnual.amount });
-    for (const o of fee.others ?? [])
-      if (o.amount > 0 && applies(o.month)) comps.push({ label: o.label, amount: o.amount });
-    return comps;
-  }
+    let total: number;
+    let paidAmount: number;
+    let components: { label: string; amount: number }[];
+    let status: "paid" | "partial" | "unpaid";
 
-  const rows: DueRow[] = [];
-  for (const s of students) {
-    const sid = s._id.toString();
-    const fee = feeByClass.get(s.classId);
-    for (const { year, month } of months) {
-      const paid = payMap.get(payKey(sid, year, month));
-
-      let total: number;
-      let paidAmount: number;
-      let components: { label: string; amount: number }[];
-      let status: "paid" | "partial" | "unpaid";
-
-      if (paid) {
-        // A real payment record exists — use the actual billed/paid values.
-        total = paid.totalAmount;
-        paidAmount = paid.paidAmount;
-        components = (paid.components ?? []).map((c) => ({ label: c.label, amount: c.amount }));
-        status = paid.status;
-      } else {
-        // No payment record. Only project expected dues for ACTIVE students;
-        // inactive students appear only via their historical payment records.
-        if (s.active === false) continue;
-        components = expectedComponents(fee, month);
-        total = components.reduce((sum, c) => sum + c.amount, 0);
-        if (total <= 0) continue; // nothing is due this month for this class
-        paidAmount = 0;
-        status = "unpaid";
-      }
-
-      if (statusFilter && status !== statusFilter) continue;
-
-      rows.push({
-        id: paid ? paid._id.toString() : `${sid}-${year}-${month}`,
-        studentId: sid,
-        name: s.name,
-        roll: s.roll,
-        phone: s.phone ?? "",
-        className: classMap.get(s.classId) ?? "—",
-        sectionName: sectionMap.get(s.sectionId) ?? "—",
-        year,
-        month,
-        period: `${monthName(month)} ${toBnDigits(year)}`,
-        components,
-        total,
-        paid: paidAmount,
-        due: Math.max(0, total - paidAmount),
-        status,
-      });
+    if (paid) {
+      total = paid.totalAmount;
+      paidAmount = paid.paidAmount;
+      components = (paid.components ?? []).map((c) => ({ label: c.label, amount: c.amount }));
+      status = paid.status;
+    } else {
+      if (s.active === false) continue;
+      components = expectedComponents(fee, month);
+      total = components.reduce((sum, c) => sum + c.amount, 0);
+      if (total <= 0) continue;
+      paidAmount = 0;
+      status = "unpaid";
     }
-  }
 
+    if (ctx.statusFilter && status !== ctx.statusFilter) continue;
+
+    out.push({
+      id: paid ? paid._id.toString() : `${sid}-${year}-${month}`,
+      studentId: sid,
+      name: s.name,
+      roll: s.roll,
+      phone: s.phone ?? "",
+      className: ctx.classMap.get(s.classId) ?? "—",
+      sectionName: ctx.sectionMap.get(s.sectionId) ?? "—",
+      year,
+      month,
+      period: `${monthName(month)} ${toBnDigits(year)}`,
+      components,
+      total,
+      paid: paidAmount,
+      due: Math.max(0, total - paidAmount),
+      status,
+    });
+  }
+  return out;
+}
+
+function sortDueRows(rows: DueRow[]): DueRow[] {
   return rows.sort(
     (a, b) =>
       a.year - b.year ||
@@ -646,6 +660,161 @@ export async function getDueReport(
       a.className.localeCompare(b.className) ||
       a.roll.localeCompare(b.roll)
   );
+}
+
+/**
+ * Fee-structure-driven due report (full, unpaginated). Retained for callers that
+ * need the whole set at once. For large tenants prefer getDueReportPaged (list),
+ * getDueReportSummary (totals) and getDueReportAll (export/matrix, capped).
+ */
+export async function getDueReport(
+  db: ScopedDb,
+  filter: { classId?: string; from: string; to: string; status?: string }
+): Promise<DueRow[]> {
+  const ctx = await loadDueContext(db, filter);
+  const studentQuery: Record<string, unknown> = {};
+  if (filter.classId) studentQuery.classId = filter.classId;
+  const students = (await db
+    .collection<StudentDoc>(Collections.students)
+    .findArray(studentQuery, { projection: DUE_STUDENT_PROJECTION })) as StudentDoc[];
+  const payMap = await loadPaymentsForStudents(
+    db,
+    ctx,
+    students.map((s) => s._id.toString())
+  );
+  const rows: DueRow[] = [];
+  for (const s of students) rows.push(...dueRowsForStudent(s, ctx, payMap));
+  return sortDueRows(rows);
+}
+
+export type DuePage = { rows: DueRow[]; nextCursor: string | null };
+
+/**
+ * Cursor-paginated due report. Pages STUDENTS by _id (a page = `limit` students
+ * expanded across every month in range), loading payments only for that page.
+ * Bounded memory + network: never loads/ships the whole collection.
+ */
+export async function getDueReportPaged(
+  db: ScopedDb,
+  filter: { classId?: string; from: string; to: string; status?: string },
+  page: { limit?: number; cursor?: string | null } = {}
+): Promise<DuePage> {
+  const limit = Math.min(Math.max(page.limit ?? 40, 1), 200);
+  const ctx = await loadDueContext(db, filter);
+  const q: Record<string, unknown> = {};
+  if (filter.classId) q.classId = filter.classId;
+  if (page.cursor) {
+    const oid = toObjectId(page.cursor);
+    if (oid) q._id = { $gt: oid };
+  }
+  const students = (await db
+    .collection<StudentDoc>(Collections.students)
+    .findArray(q, { sort: { _id: 1 }, limit: limit + 1, projection: DUE_STUDENT_PROJECTION })) as StudentDoc[];
+  const hasMore = students.length > limit;
+  const slice = hasMore ? students.slice(0, limit) : students;
+  const payMap = await loadPaymentsForStudents(
+    db,
+    ctx,
+    slice.map((s) => s._id.toString())
+  );
+  const rows: DueRow[] = [];
+  for (const s of slice) rows.push(...dueRowsForStudent(s, ctx, payMap));
+  const nextCursor = hasMore ? slice[slice.length - 1]._id.toString() : null;
+  return { rows: sortDueRows(rows), nextCursor };
+}
+
+export type DueSummary = { totalDue: number; totalPaid: number; count: number };
+
+/**
+ * Report totals (due / collected / row count) computed server-side by streaming
+ * students in cursor batches — exact (reuses dueRowsForStudent), bounded memory,
+ * and only 3 numbers cross the wire instead of every row.
+ */
+export async function getDueReportSummary(
+  db: ScopedDb,
+  filter: { classId?: string; from: string; to: string; status?: string }
+): Promise<DueSummary> {
+  const ctx = await loadDueContext(db, filter);
+  const q: Record<string, unknown> = {};
+  if (filter.classId) q.classId = filter.classId;
+  const BATCH = 500;
+  let totalDue = 0;
+  let totalPaid = 0;
+  let count = 0;
+  let cursor: string | null = null;
+  for (;;) {
+    const bq: Record<string, unknown> = { ...q };
+    if (cursor) {
+      const oid = toObjectId(cursor);
+      if (oid) bq._id = { $gt: oid };
+    }
+    const batch = (await db
+      .collection<StudentDoc>(Collections.students)
+      .findArray(bq, { sort: { _id: 1 }, limit: BATCH, projection: DUE_STUDENT_PROJECTION })) as StudentDoc[];
+    if (batch.length === 0) break;
+    const payMap = await loadPaymentsForStudents(
+      db,
+      ctx,
+      batch.map((s) => s._id.toString())
+    );
+    for (const s of batch) {
+      for (const r of dueRowsForStudent(s, ctx, payMap)) {
+        totalDue += r.due;
+        totalPaid += r.paid;
+        count += 1;
+      }
+    }
+    if (batch.length < BATCH) break;
+    cursor = batch[batch.length - 1]._id.toString();
+  }
+  return { totalDue, totalPaid, count };
+}
+
+export type DueReportAll = { rows: DueRow[]; capped: boolean };
+
+/**
+ * Full row set for export / matrix, built server-side in cursor batches with a
+ * hard cap so a huge From–To × all-classes selection can't exhaust memory. When
+ * `capped` is true the client should warn that the export/matrix is truncated.
+ */
+export async function getDueReportAll(
+  db: ScopedDb,
+  filter: { classId?: string; from: string; to: string; status?: string },
+  cap = 20000
+): Promise<DueReportAll> {
+  const ctx = await loadDueContext(db, filter);
+  const q: Record<string, unknown> = {};
+  if (filter.classId) q.classId = filter.classId;
+  const BATCH = 500;
+  const rows: DueRow[] = [];
+  let capped = false;
+  let cursor: string | null = null;
+  for (;;) {
+    const bq: Record<string, unknown> = { ...q };
+    if (cursor) {
+      const oid = toObjectId(cursor);
+      if (oid) bq._id = { $gt: oid };
+    }
+    const batch = (await db
+      .collection<StudentDoc>(Collections.students)
+      .findArray(bq, { sort: { _id: 1 }, limit: BATCH, projection: DUE_STUDENT_PROJECTION })) as StudentDoc[];
+    if (batch.length === 0) break;
+    const payMap = await loadPaymentsForStudents(
+      db,
+      ctx,
+      batch.map((s) => s._id.toString())
+    );
+    for (const s of batch) {
+      rows.push(...dueRowsForStudent(s, ctx, payMap));
+      if (rows.length >= cap) {
+        capped = true;
+        break;
+      }
+    }
+    if (capped || batch.length < BATCH) break;
+    cursor = batch[batch.length - 1]._id.toString();
+  }
+  return { rows: sortDueRows(rows.slice(0, cap)), capped };
 }
 
 export type DashboardStats = {

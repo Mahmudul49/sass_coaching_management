@@ -1,7 +1,12 @@
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { requireAdmin } from "@/lib/auth/guards";
-import { listClasses, getDueReport, getAttendanceReport } from "@/lib/admin/queries";
+import {
+  listClasses,
+  getDueReportPaged,
+  getDueReportSummary,
+  getAttendanceReport,
+} from "@/lib/admin/queries";
 import DueReportClient from "@/components/admin/DueReportClient";
 import AttendanceReportClient from "@/components/admin/AttendanceReportClient";
 import ReportTabs from "@/components/admin/ReportTabs";
@@ -48,7 +53,11 @@ export default async function ReportsPage({
   async function renderPayment() {
     const classId = sp.classId ?? "";
     const status = sp.status ?? "";
-    const rows = await getDueReport(db, { classId: classId || undefined, from, to, status });
+    const filter = { classId: classId || undefined, from, to, status };
+    const [initial, summary] = await Promise.all([
+      getDueReportPaged(db, filter),
+      getDueReportSummary(db, filter),
+    ]);
     return (
       <DueReportClient
         classes={classes}
@@ -56,7 +65,8 @@ export default async function ReportsPage({
         from={from}
         to={to}
         status={status}
-        rows={rows}
+        initial={initial}
+        summary={summary}
         centerName={ctx.tenant.name}
       />
     );
