@@ -30,6 +30,8 @@ import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-dat
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/providers/ToastProvider";
 import { savePayment } from "@/app/[tenant]/admin/actions/payments";
+import { useI18n } from "@/components/providers/I18nProvider";
+import type { MessageKey } from "@/lib/i18n/dictionaries";
 import { printReceipt, shareReceiptWhatsApp, type ReceiptData } from "@/lib/receipt";
 import type { ClassRow, PayColumn, PayRow } from "@/lib/admin/queries";
 import { BN_MONTHS, taka, yearOptions, toBnDigits } from "@/lib/format";
@@ -63,10 +65,10 @@ function flatten(rows: PayRow[], template: PayColumn[]): Row[] {
   });
 }
 
-function statusChip(total: number, paid: number) {
-  if (paid <= 0) return <Chip size="small" label="বাকি" color="error" />;
-  if (paid >= total) return <Chip size="small" label="পরিশোধিত" color="success" />;
-  return <Chip size="small" label="আংশিক" color="warning" />;
+function statusChip(total: number, paid: number, t: (k: MessageKey) => string) {
+  if (paid <= 0) return <Chip size="small" label={t("c_due")} color="error" />;
+  if (paid >= total) return <Chip size="small" label={t("c_paid")} color="success" />;
+  return <Chip size="small" label={t("c_partial")} color="warning" />;
 }
 
 export default function PaymentsClient({
@@ -91,6 +93,7 @@ export default function PaymentsClient({
   const router = useRouter();
   const pathname = usePathname();
   const toast = useToast();
+  const { t } = useI18n();
   const [pending, start] = useTransition();
   const [rows, setRows] = useState<Row[]>(() => flatten(initialRows, template));
   const [mobileQ, setMobileQ] = useState("");
@@ -169,9 +172,9 @@ export default function PaymentsClient({
     start(async () => {
       const res = await persist(row);
       if (res.ok) {
-        toast.success(`${row.name} — পেমেন্ট সংরক্ষিত (SMS পাঠানো হয়েছে)।`);
+        toast.success(`${row.name} — ${t("pay_saved")}`);
         router.refresh();
-      } else toast.error(res.error ?? "সমস্যা হয়েছে।");
+      } else toast.error(res.error ?? t("c_something_wrong"));
     });
   }
 
@@ -182,7 +185,7 @@ export default function PaymentsClient({
         const res = await persist(row);
         if (res.ok) okCount++;
       }
-      toast.success(`${toBnDigits(okCount)} জনের পেমেন্ট সংরক্ষিত হয়েছে।`);
+      toast.success(`${toBnDigits(okCount)} ${t("pay_saved_n")}`);
       router.refresh();
     });
   }
@@ -210,9 +213,9 @@ export default function PaymentsClient({
 
   const columns = useMemo<GridColDef<Row>[]>(() => {
     const base: GridColDef<Row>[] = [
-      { field: "roll", headerName: "রোল", width: 70 },
-      { field: "name", headerName: "নাম", flex: 1, minWidth: 130 },
-      { field: "sectionName", headerName: "শাখা", width: 70 },
+      { field: "roll", headerName: t("c_roll"), width: 70 },
+      { field: "name", headerName: t("c_name"), flex: 1, minWidth: 130 },
+      { field: "sectionName", headerName: t("c_section"), width: 70 },
     ];
     const compCols: GridColDef<Row>[] = template.map((c) => ({
       field: c.key,
@@ -225,14 +228,14 @@ export default function PaymentsClient({
     const tail: GridColDef<Row>[] = [
       {
         field: "total",
-        headerName: "মোট",
+        headerName: t("c_total"),
         width: 110,
         valueGetter: (_v, row) => rowTotal(row),
         valueFormatter: (v: number) => taka(Number(v) || 0),
       },
       {
         field: "full",
-        headerName: "সম্পূর্ণ",
+        headerName: t("pay_full"),
         width: 90,
         sortable: false,
         filterable: false,
@@ -250,7 +253,7 @@ export default function PaymentsClient({
       },
       {
         field: "paidAmount",
-        headerName: "পরিশোধিত",
+        headerName: t("c_paid"),
         width: 110,
         editable: true,
         type: "number",
@@ -258,31 +261,31 @@ export default function PaymentsClient({
       },
       {
         field: "status",
-        headerName: "অবস্থা",
+        headerName: t("c_status"),
         width: 110,
         renderCell: (p: GridRenderCellParams<Row>) =>
-          statusChip(rowTotal(p.row), Number(p.row.paidAmount) || 0),
+          statusChip(rowTotal(p.row), Number(p.row.paidAmount) || 0, t),
       },
       {
         field: "remarks",
-        headerName: "মন্তব্য (ঐচ্ছিক)",
+        headerName: t("c_remarks_opt"),
         width: 200,
         editable: true,
       },
       {
         field: "actions",
-        headerName: "অ্যাকশন",
+        headerName: t("c_action"),
         width: 140,
         sortable: false,
         filterable: false,
         renderCell: (p: GridRenderCellParams<Row>) => (
           <>
-            <Tooltip title="সংরক্ষণ">
+            <Tooltip title={t("pay_save")}>
               <IconButton size="small" color="primary" onClick={() => saveRow(p.row)} disabled={pending}>
                 <SaveIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="রসিদ প্রিন্ট">
+            <Tooltip title={t("pay_print_receipt")}>
               <IconButton size="small" onClick={() => receipt(p.row)}>
                 <PrintIcon fontSize="small" />
               </IconButton>
@@ -298,24 +301,24 @@ export default function PaymentsClient({
     ];
     return [...base, ...compCols, ...tail];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template, rowTotal, pending]);
+  }, [template, rowTotal, pending, t]);
 
   return (
     <Stack spacing={2}>
       <Card>
         <CardContent>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <TextField select label="ক্লাস" value={classId} onChange={(e) => navigate({ classId: e.target.value })}>
+            <TextField select label={t("c_class")} value={classId} onChange={(e) => navigate({ classId: e.target.value })}>
               {classes.map((c) => (
                 <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
               ))}
             </TextField>
-            <TextField select label="মাস" value={month} onChange={(e) => navigate({ month: Number(e.target.value) })}>
+            <TextField select label={t("c_month")} value={month} onChange={(e) => navigate({ month: Number(e.target.value) })}>
               {BN_MONTHS.map((m, i) => (
                 <MenuItem key={i} value={i + 1}>{m}</MenuItem>
               ))}
             </TextField>
-            <TextField select label="বছর" value={year} onChange={(e) => navigate({ year: Number(e.target.value) })}>
+            <TextField select label={t("c_year")} value={year} onChange={(e) => navigate({ year: Number(e.target.value) })}>
               {yearOptions().map((y) => (
                 <MenuItem key={y} value={y}>{toBnDigits(y)}</MenuItem>
               ))}
@@ -326,7 +329,7 @@ export default function PaymentsClient({
 
       {rows.length === 0 ? (
         <Card sx={{ p: 2 }}>
-          <EmptyState title="এই ক্লাসে কোনো শিক্ষার্থী নেই" description="অন্য ক্লাস নির্বাচন করুন অথবা শিক্ষার্থী যোগ করুন।" />
+          <EmptyState title={t("pay_no_students")} description={t("pay_pick_other")} />
         </Card>
       ) : (
         <>
@@ -336,7 +339,7 @@ export default function PaymentsClient({
               <CardContent sx={{ py: 1.5 }}>
                 <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
                   <Typography variant="body2" color="text.secondary">
-                    আদায় {taka(summary.collected)} / {taka(summary.expected)}
+                    {t("pay_collected")} {taka(summary.collected)} / {taka(summary.expected)}
                   </Typography>
                   <Typography variant="body2" fontWeight={700}>
                     {toBnDigits(collectedPct)}%
@@ -344,9 +347,9 @@ export default function PaymentsClient({
                 </Stack>
                 <LinearProgress variant="determinate" value={collectedPct} color="success" sx={{ height: 8, borderRadius: 4 }} />
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" color="success" label={`পরিশোধিত ${toBnDigits(summary.paid)}`} />
-                  <Chip size="small" color="warning" label={`আংশিক ${toBnDigits(summary.partial)}`} />
-                  <Chip size="small" color="error" label={`বাকি ${toBnDigits(summary.unpaid)}`} />
+                  <Chip size="small" color="success" label={`${t("c_paid")} ${toBnDigits(summary.paid)}`} />
+                  <Chip size="small" color="warning" label={`${t("c_partial")} ${toBnDigits(summary.partial)}`} />
+                  <Chip size="small" color="error" label={`${t("c_due")} ${toBnDigits(summary.unpaid)}`} />
                 </Stack>
                 <Button
                   fullWidth
@@ -357,7 +360,7 @@ export default function PaymentsClient({
                   onClick={markAllFull}
                   sx={{ mt: 1.25 }}
                 >
-                  সবাইকে সম্পূর্ণ আদায় ধরুন
+                  {t("pay_mark_all_full")}
                 </Button>
               </CardContent>
             </Card>
@@ -365,7 +368,7 @@ export default function PaymentsClient({
             <TextField
               fullWidth
               size="small"
-              placeholder="নাম বা রোল দিয়ে খুঁজুন..."
+              placeholder={t("pay_search")}
               value={mobileQ}
               onChange={(e) => setMobileQ(e.target.value)}
               sx={{ mb: 1.5 }}
@@ -399,10 +402,10 @@ export default function PaymentsClient({
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Typography fontWeight={700} noWrap>{row.name}</Typography>
                       <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                        রোল {toBnDigits(row.roll)} · শাখা {row.sectionName}
+                        {t("c_roll")} {toBnDigits(row.roll)} · {t("c_section")} {row.sectionName}
                       </Typography>
                     </Box>
-                    {statusChip(total, paid)}
+                    {statusChip(total, paid, t)}
                   </Box>
 
                   <CardContent sx={{ p: 1.75, "&:last-child": { pb: 1.75 } }}>
@@ -420,9 +423,9 @@ export default function PaymentsClient({
                       }}
                     >
                       {[
-                        { l: "মোট", v: taka(total), c: "text.primary" },
-                        { l: "পরিশোধিত", v: taka(paid), c: "success.main" },
-                        { l: "বাকি", v: taka(Math.max(0, total - paid)), c: total - paid > 0 ? "error.main" : "text.secondary" },
+                        { l: t("c_total"), v: taka(total), c: "text.primary" },
+                        { l: t("c_paid"), v: taka(paid), c: "success.main" },
+                        { l: t("c_due"), v: taka(Math.max(0, total - paid)), c: total - paid > 0 ? "error.main" : "text.secondary" },
                       ].map((s, i) => (
                         <Box key={s.l} sx={{ py: 1, borderLeft: i ? "1px solid" : 0, borderColor: "divider" }}>
                           <Typography variant="caption" color="text.secondary" display="block">
@@ -444,7 +447,7 @@ export default function PaymentsClient({
                       onClick={() => setFullPaid(row, !(total > 0 && paid >= total))}
                       sx={{ mb: 1 }}
                     >
-                      {total > 0 && paid >= total ? "সম্পূর্ণ পরিশোধিত ✓" : "সম্পূর্ণ আদায়"}
+                      {total > 0 && paid >= total ? t("pay_full_done") : t("pay_full")}
                     </Button>
 
                     {/* Collapsible itemized breakdown — expand only to override a sector */}
@@ -456,7 +459,7 @@ export default function PaymentsClient({
                       onClick={() => toggleExpand(row.id)}
                       sx={{ justifyContent: "flex-start", color: "text.secondary" }}
                     >
-                      {expanded[row.id] ? "ফি বিবরণ লুকান" : "ফি বিবরণ সম্পাদনা"}
+                      {expanded[row.id] ? t("pay_hide_fees") : t("pay_edit_fees")}
                     </Button>
                     <Collapse in={!!expanded[row.id]}>
                       <Stack spacing={0.75} sx={{ mt: 0.5, mb: 1 }} divider={<Divider flexItem />}>
@@ -479,7 +482,7 @@ export default function PaymentsClient({
                       </Stack>
                     </Collapse>
                     <TextField
-                      label="পরিশোধিত পরিমাণ"
+                      label={t("pay_amount")}
                       type="number"
                       fullWidth
                       value={row.paidAmount}
@@ -489,7 +492,7 @@ export default function PaymentsClient({
                       sx={{ mt: 0.5 }}
                     />
                     <TextField
-                      label="মন্তব্য / অগ্রগতি (ঐচ্ছিক)"
+                      label={t("pay_progress_remarks")}
                       size="small"
                       fullWidth
                       multiline
@@ -506,9 +509,9 @@ export default function PaymentsClient({
                         onClick={() => saveRow(row)}
                         disabled={pending}
                       >
-                        সেভ করুন
+                        {t("pay_save")}
                       </Button>
-                      <Tooltip title="রসিদ">
+                      <Tooltip title={t("pay_receipt")}>
                         <IconButton color="primary" onClick={() => receipt(row)} sx={{ border: "1px solid", borderColor: "divider" }}>
                           <PrintIcon />
                         </IconButton>
@@ -535,7 +538,7 @@ export default function PaymentsClient({
                   rows={rows}
                   columns={columns}
                   processRowUpdate={processRowUpdate}
-                  onProcessRowUpdateError={() => toast.error("আপডেট ব্যর্থ হয়েছে।")}
+                  onProcessRowUpdateError={() => toast.error(t("pay_update_failed"))}
                   disableRowSelectionOnClick
                   initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
                   pageSizeOptions={[25, 50, 100]}
@@ -560,11 +563,11 @@ export default function PaymentsClient({
             }}
           >
             <Typography variant="body2" color="text.secondary" sx={{ display: { xs: "none", sm: "block" } }}>
-              {toBnDigits(rows.length)} জন শিক্ষার্থী
+              {toBnDigits(rows.length)} {t("students_word")}
             </Typography>
             <Box sx={{ flex: 1 }} />
             <Button startIcon={<SaveIcon />} onClick={saveAll} disabled={pending} size="large">
-              {pending ? "সংরক্ষণ..." : "সবার পেমেন্ট সংরক্ষণ"}
+              {pending ? t("pay_saving") : t("pay_save_all")}
             </Button>
           </Paper>
         </>
