@@ -18,6 +18,7 @@ import DataCard from "@/components/ui/DataCard";
 import { exportAoa } from "@/lib/excel";
 import type { ClassRow, AttendanceReportRow } from "@/lib/admin/queries";
 import { toBnDigits } from "@/lib/format";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 export default function AttendanceReportClient({
   classes,
@@ -38,6 +39,7 @@ export default function AttendanceReportClient({
   centerName: string;
   className: string;
 }) {
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -52,15 +54,15 @@ export default function AttendanceReportClient({
 
   const columns = useMemo<GridColDef<AttendanceReportRow>[]>(
     () => [
-      { field: "roll", headerName: "রোল", width: 90 },
-      { field: "name", headerName: "নাম", flex: 1, minWidth: 140 },
-      { field: "sectionName", headerName: "শাখা", width: 90 },
-      { field: "present", headerName: "উপস্থিত", width: 100, valueFormatter: (v: number) => toBnDigits(v ?? 0) },
-      { field: "absent", headerName: "অনুপস্থিত", width: 110, valueFormatter: (v: number) => toBnDigits(v ?? 0) },
-      { field: "total", headerName: "মোট দিন", width: 100, valueFormatter: (v: number) => toBnDigits(v ?? 0) },
+      { field: "roll", headerName: t("c_roll"), width: 90 },
+      { field: "name", headerName: t("c_name"), flex: 1, minWidth: 140 },
+      { field: "sectionName", headerName: t("c_section"), width: 90 },
+      { field: "present", headerName: t("ar_present"), width: 100, valueFormatter: (v: number) => toBnDigits(v ?? 0) },
+      { field: "absent", headerName: t("ar_absent"), width: 110, valueFormatter: (v: number) => toBnDigits(v ?? 0) },
+      { field: "total", headerName: t("ar_total_days"), width: 100, valueFormatter: (v: number) => toBnDigits(v ?? 0) },
       {
         field: "pct",
-        headerName: "হার",
+        headerName: t("ar_rate"),
         width: 100,
         renderCell: (p) => (
           <Chip
@@ -71,7 +73,7 @@ export default function AttendanceReportClient({
         ),
       },
     ],
-    []
+    [t]
   );
 
   function exportExcel() {
@@ -120,7 +122,7 @@ export default function AttendanceReportClient({
   const renderCard = (r: AttendanceReportRow) => (
     <DataCard
       title={r.name}
-      subtitle={`রোল ${toBnDigits(r.roll)} · শাখা ${r.sectionName}`}
+      subtitle={`${t("c_roll")} ${toBnDigits(r.roll)} · ${t("c_section")} ${r.sectionName}`}
       right={
         <Chip
           size="small"
@@ -129,9 +131,9 @@ export default function AttendanceReportClient({
         />
       }
       fields={[
-        { label: "উপস্থিত", value: toBnDigits(r.present) },
-        { label: "অনুপস্থিত", value: toBnDigits(r.absent) },
-        { label: "মোট", value: toBnDigits(r.total) },
+        { label: t("ar_present"), value: toBnDigits(r.present) },
+        { label: t("ar_absent"), value: toBnDigits(r.absent) },
+        { label: t("c_total"), value: toBnDigits(r.total) },
       ]}
     />
   );
@@ -141,33 +143,33 @@ export default function AttendanceReportClient({
       <Card>
         <CardContent>
           <Stack direction={{ xs: "column", md: "row" }} spacing={2} useFlexGap flexWrap="wrap">
-            <TextField select label="ক্লাস" value={classId} onChange={(e) => navigate({ classId: e.target.value })} sx={{ minWidth: 150 }}>
+            <TextField select label={t("c_class")} value={classId} onChange={(e) => navigate({ classId: e.target.value })} sx={{ minWidth: 150 }}>
               {classes.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
                   {c.name}
                 </MenuItem>
               ))}
             </TextField>
-            <TextField type="date" label="শুরু (From)" value={from} onChange={(e) => navigate({ from: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }} />
-            <TextField type="date" label="শেষ (To)" value={to} onChange={(e) => navigate({ to: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }} />
+            <TextField type="date" label={t("r_from")} value={from} onChange={(e) => navigate({ from: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }} />
+            <TextField type="date" label={t("r_to")} value={to} onChange={(e) => navigate({ to: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }} />
           </Stack>
         </CardContent>
       </Card>
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }} useFlexGap flexWrap="wrap">
-        <Chip color="primary" sx={{ fontWeight: 700 }} label={`মোট ক্লাস দিন: ${toBnDigits(days)}`} />
+        <Chip color="primary" sx={{ fontWeight: 700 }} label={`${t("ar_class_days")}: ${toBnDigits(days)}`} />
         <Box sx={{ flex: 1 }} />
         <Button startIcon={<DownloadIcon />} variant="outlined" onClick={exportExcel} disabled={rows.length === 0}>
-          Excel
+          {t("export_excel")}
         </Button>
         <Button startIcon={<PrintIcon />} variant="outlined" onClick={printReport} disabled={rows.length === 0}>
-          প্রিন্ট
+          {t("ar_print")}
         </Button>
       </Stack>
 
       <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
         {rows.length === 0 ? (
-          <EmptyState title="কোনো তথ্য নেই" description="ক্লাস নির্বাচন করুন অথবা এই সময়সীমায় উপস্থিতি নেওয়া হয়নি।" />
+          <EmptyState title={t("ar_empty")} description={t("ar_empty_desc")} />
         ) : (
           <ResponsiveTable
             rows={rows}

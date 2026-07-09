@@ -16,6 +16,8 @@ import DownloadIcon from "@mui/icons-material/Download";
 import PrintIcon from "@mui/icons-material/Print";
 import EmptyState from "@/components/ui/EmptyState";
 import { exportAoa } from "@/lib/excel";
+import { useI18n } from "@/components/providers/I18nProvider";
+import type { MessageKey } from "@/lib/i18n/dictionaries";
 import type { DueRow } from "@/lib/admin/queries";
 import { monthName, taka, toBnDigits } from "@/lib/format";
 
@@ -32,11 +34,15 @@ type MatrixStudent = {
 
 const ymKey = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}`;
 
-function statusOf(payable: number, paid: number): { label: string; color: "success" | "warning" | "error" } {
+function statusOf(
+  payable: number,
+  paid: number,
+  t: (k: MessageKey) => string
+): { label: string; color: "success" | "warning" | "error" } {
   const due = payable - paid;
-  if (paid <= 0) return { label: "বাকি", color: "error" };
-  if (due <= 0) return { label: "পরিশোধিত", color: "success" };
-  return { label: "আংশিক", color: "warning" };
+  if (paid <= 0) return { label: t("c_due"), color: "error" };
+  if (due <= 0) return { label: t("c_paid"), color: "success" };
+  return { label: t("c_partial"), color: "warning" };
 }
 
 /**
@@ -45,6 +51,7 @@ function statusOf(payable: number, paid: number): { label: string; color: "succe
  * Payable / Paid / Due / % / Status. Reuses the report's server-computed rows.
  */
 export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; centerName: string }) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
 
   const { months, students } = useMemo(() => {
@@ -112,7 +119,7 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
         s.paid,
         due,
         `${pct}%`,
-        statusOf(s.payable, s.paid).label,
+        statusOf(s.payable, s.paid, t).label,
       ];
     });
     return [
@@ -131,15 +138,15 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
   function printMatrix() {
     const w = window.open("", "_blank", "width=1000,height=700");
     if (!w) return;
-    const th = (t: string) => `<th>${t}</th>`;
+    const th = (s: string) => `<th>${s}</th>`;
     const head =
-      th("নাম") +
-      th("রোল") +
-      th("ক্লাস") +
+      th(t("c_name")) +
+      th(t("c_roll")) +
+      th(t("c_class")) +
       months.map((m) => th(`${monthName(m.month)}`)).join("") +
-      th("প্রদেয়") +
-      th("পরিশোধিত") +
-      th("বাকি") +
+      th(t("mx_payable")) +
+      th(t("c_paid")) +
+      th(t("c_due")) +
       th("%");
     const body = shown
       .map((s) => {
@@ -160,7 +167,7 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
       th{background:#f0f0f0}@media print{button{display:none}}</style></head>
       <body><h2>${centerName} — পেমেন্ট ম্যাট্রিক্স</h2>
       <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
-      <div style="text-align:center;margin-top:16px"><button onclick="window.print()">প্রিন্ট</button></div>
+      <div style="text-align:center;margin-top:16px"><button onclick="window.print()">${t("ar_print")}</button></div>
       </body></html>`
     );
     w.document.close();
@@ -169,7 +176,7 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
   }
 
   if (rows.length === 0) {
-    return <EmptyState title="কোনো রেকর্ড নেই" description="এই সময়সীমায় কোনো ডেটা নেই।" />;
+    return <EmptyState title={t("mx_no_data")} description={t("mx_no_data_desc")} />;
   }
 
   return (
@@ -177,7 +184,7 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
         <TextField
           size="small"
-          placeholder="নাম বা রোল খুঁজুন..."
+          placeholder={t("mx_search")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
@@ -185,10 +192,10 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
         />
         <Box sx={{ flex: 1 }} />
         <Button startIcon={<DownloadIcon />} variant="outlined" onClick={exportExcel}>
-          Excel
+          {t("export_excel")}
         </Button>
         <Button startIcon={<PrintIcon />} variant="outlined" onClick={printMatrix}>
-          প্রিন্ট
+          {t("ar_print")}
         </Button>
       </Stack>
 
@@ -196,26 +203,26 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
         <Table size="small" sx={{ minWidth: 640, "& td, & th": { whiteSpace: "nowrap" } }}>
           <TableHead>
             <TableRow>
-              <TableCell>নাম</TableCell>
-              <TableCell>রোল</TableCell>
-              <TableCell>ক্লাস</TableCell>
+              <TableCell>{t("c_name")}</TableCell>
+              <TableCell>{t("c_roll")}</TableCell>
+              <TableCell>{t("c_class")}</TableCell>
               {months.map((m) => (
                 <TableCell key={m.key} align="right">
                   {monthName(m.month)}
                 </TableCell>
               ))}
-              <TableCell align="right">প্রদেয়</TableCell>
-              <TableCell align="right">পরিশোধিত</TableCell>
-              <TableCell align="right">বাকি</TableCell>
+              <TableCell align="right">{t("mx_payable")}</TableCell>
+              <TableCell align="right">{t("c_paid")}</TableCell>
+              <TableCell align="right">{t("c_due")}</TableCell>
               <TableCell align="right">%</TableCell>
-              <TableCell>অবস্থা</TableCell>
+              <TableCell>{t("c_status")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {shown.map((s) => {
               const due = Math.max(0, s.payable - s.paid);
               const pct = s.payable > 0 ? Math.round((s.paid / s.payable) * 100) : 0;
-              const st = statusOf(s.payable, s.paid);
+              const st = statusOf(s.payable, s.paid, t);
               return (
                 <TableRow key={s.studentId} hover>
                   <TableCell>{s.name}</TableCell>

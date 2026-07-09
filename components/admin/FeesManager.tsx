@@ -20,6 +20,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/providers/ToastProvider";
 import { saveFeeStructure } from "@/app/[tenant]/admin/actions/master";
+import { useI18n } from "@/components/providers/I18nProvider";
 import type { FeeRow } from "@/lib/admin/queries";
 import { BN_MONTHS, monthName, taka } from "@/lib/format";
 
@@ -51,6 +52,7 @@ function MonthField({
 
 export default function FeesManager({ fees }: { fees: FeeRow[] }) {
   const toast = useToast();
+  const { t } = useI18n();
   const [editing, setEditing] = useState<FeeRow | null>(null);
   const [pending, start] = useTransition();
 
@@ -113,19 +115,16 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
         })),
       });
       if (res.ok) {
-        toast.success("ফি স্ট্রাকচার সংরক্ষিত হয়েছে।");
+        toast.success(t("fee_saved"));
         setEditing(null);
-      } else toast.error(res.error ?? "সমস্যা হয়েছে।");
+      } else toast.error(res.error ?? t("c_something_wrong"));
     });
   }
 
   if (fees.length === 0) {
     return (
       <Card sx={{ p: 2 }}>
-        <EmptyState
-          title="আগে ক্লাস তৈরি করুন"
-          description="ফি স্ট্রাকচার সেট করার আগে ক্লাস থাকতে হবে।"
-        />
+        <EmptyState title={t("fee_need_class")} description={t("fee_need_class_desc")} />
       </Card>
     );
   }
@@ -138,24 +137,24 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Typography variant="h6">{f.className}</Typography>
               <Button size="small" startIcon={<EditIcon />} onClick={() => setEditing(f)}>
-                সম্পাদনা
+                {t("edit")}
               </Button>
             </Stack>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
               {f.admissionFee > 0 && (
-                <Chip label={`ভর্তি: ${taka(f.admissionFee)} (${monthName(f.admissionMonth)})`} />
+                <Chip label={`${t("fee_admission")}: ${taka(f.admissionFee)} (${monthName(f.admissionMonth)})`} />
               )}
-              <Chip label={`মাসিক: ${taka(f.monthlyFee)}`} color="primary" />
+              <Chip label={`${t("fee_monthly")}: ${taka(f.monthlyFee)}`} color="primary" />
               {f.modelTestHalfYearly.enabled && f.modelTestHalfYearly.amount > 0 && (
                 <Chip
-                  label={`ষান্মাসিক মডেল টেস্ট: ${taka(f.modelTestHalfYearly.amount)} (${monthName(
+                  label={`${t("fee_model_half")}: ${taka(f.modelTestHalfYearly.amount)} (${monthName(
                     f.modelTestHalfYearly.month
                   )})`}
                 />
               )}
               {f.modelTestAnnual.enabled && f.modelTestAnnual.amount > 0 && (
                 <Chip
-                  label={`বার্ষিক মডেল টেস্ট: ${taka(f.modelTestAnnual.amount)} (${monthName(
+                  label={`${t("fee_model_annual")}: ${taka(f.modelTestAnnual.amount)} (${monthName(
                     f.modelTestAnnual.month
                   )})`}
                 />
@@ -172,23 +171,23 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
         open={!!editing}
         onClose={() => setEditing(null)}
         disableClose={pending}
-        title={`ফি স্ট্রাকচার — ${editing?.className ?? ""}`}
+        title={`${t("nav_fees")} — ${editing?.className ?? ""}`}
         actions={
           <>
             <Button variant="text" color="inherit" onClick={() => setEditing(null)} disabled={pending}>
-              বাতিল
+              {t("cancel")}
             </Button>
             <Button onClick={save} disabled={pending}>
-              {pending ? "সংরক্ষণ হচ্ছে..." : "সংরক্ষণ"}
+              {pending ? t("fee_saving") : t("save")}
             </Button>
           </>
         }
       >
         <Stack spacing={2}>
-          <Divider>ভর্তি ফি</Divider>
+          <Divider>{t("fee_admission")}</Divider>
             <Stack direction="row" spacing={2}>
               <TextField
-                label="টাকা"
+                label={t("fee_taka")}
                 type="number"
                 value={form.admissionFee}
                 onChange={(e) => setForm((f) => ({ ...f, admissionFee: e.target.value }))}
@@ -197,13 +196,13 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
             </Stack>
 
             <TextField
-              label="মাসিক ফি"
+              label={t("fee_monthly")}
               type="number"
               value={form.monthlyFee}
               onChange={(e) => setForm((f) => ({ ...f, monthlyFee: e.target.value }))}
             />
 
-            <Divider>ষান্মাসিক মডেল টেস্ট</Divider>
+            <Divider>{t("fee_model_half")}</Divider>
             <FormControlLabel
               control={
                 <Checkbox
@@ -211,11 +210,11 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
                   onChange={(e) => setForm((f) => ({ ...f, halfEnabled: e.target.checked }))}
                 />
               }
-              label="চালু"
+              label={t("fee_enabled")}
             />
             <Stack direction="row" spacing={2}>
               <TextField
-                label="টাকা"
+                label={t("fee_taka")}
                 type="number"
                 value={form.halfAmount}
                 disabled={!form.halfEnabled}
@@ -224,7 +223,7 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
               <MonthField value={form.halfMonth} onChange={(m) => setForm((f) => ({ ...f, halfMonth: m }))} />
             </Stack>
 
-            <Divider>বার্ষিক মডেল টেস্ট</Divider>
+            <Divider>{t("fee_model_annual")}</Divider>
             <FormControlLabel
               control={
                 <Checkbox
@@ -232,11 +231,11 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
                   onChange={(e) => setForm((f) => ({ ...f, annualEnabled: e.target.checked }))}
                 />
               }
-              label="চালু"
+              label={t("fee_enabled")}
             />
             <Stack direction="row" spacing={2}>
               <TextField
-                label="টাকা"
+                label={t("fee_taka")}
                 type="number"
                 value={form.annualAmount}
                 disabled={!form.annualEnabled}
@@ -245,11 +244,11 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
               <MonthField value={form.annualMonth} onChange={(m) => setForm((f) => ({ ...f, annualMonth: m }))} />
             </Stack>
 
-            <Divider>অন্যান্য ফি</Divider>
+            <Divider>{t("fee_others")}</Divider>
             {form.others.map((o, i) => (
               <Stack key={i} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                 <TextField
-                  label="নাম"
+                  label={t("c_name")}
                   value={o.label}
                   onChange={(e) =>
                     setForm((f) => {
@@ -261,7 +260,7 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
                   sx={{ minWidth: 120, flex: 1 }}
                 />
                 <TextField
-                  label="টাকা"
+                  label={t("fee_taka")}
                   type="number"
                   value={o.amount}
                   onChange={(e) =>
@@ -303,7 +302,7 @@ export default function FeesManager({ fees }: { fees: FeeRow[] }) {
                   }))
                 }
               >
-                আরও ফি যোগ করুন
+                {t("fee_add_more")}
               </Button>
             </Box>
           </Stack>
