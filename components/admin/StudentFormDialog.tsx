@@ -7,6 +7,7 @@ import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import ResponsiveDialog from "@/components/ui/ResponsiveDialog";
 import { useToast } from "@/components/providers/ToastProvider";
+import { useI18n } from "@/components/providers/I18nProvider";
 import { createStudent, updateStudent } from "@/app/[tenant]/admin/actions/students";
 import type { ClassRow, SectionRow, StudentRow } from "@/lib/admin/queries";
 
@@ -24,6 +25,7 @@ export default function StudentFormDialog({
   student?: StudentRow | null;
 }) {
   const toast = useToast();
+  const { t } = useI18n();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -66,10 +68,10 @@ export default function StudentFormDialog({
         ? await updateStudent(student.id, form)
         : await createStudent(form);
       if (res.ok) {
-        toast.success(student ? "শিক্ষার্থী আপডেট হয়েছে।" : "শিক্ষার্থী যোগ হয়েছে।");
+        toast.success(student ? t("st_saved") : t("st_added"));
         onClose();
       } else {
-        setError(res.error ?? "সমস্যা হয়েছে।");
+        setError(res.error ?? t("c_something_wrong"));
       }
     });
   }
@@ -79,21 +81,21 @@ export default function StudentFormDialog({
       open={open}
       onClose={onClose}
       disableClose={pending}
-      title={student ? "শিক্ষার্থী সম্পাদনা" : "নতুন শিক্ষার্থী"}
+      title={student ? t("st_edit") : t("st_new")}
       actions={
         <>
           <Button variant="text" color="inherit" onClick={onClose} disabled={pending}>
-            বাতিল
+            {t("cancel")}
           </Button>
           <Button onClick={submit} disabled={pending} size="large">
-            {pending ? "সংরক্ষণ হচ্ছে..." : "সংরক্ষণ"}
+            {pending ? t("st_saving") : t("save")}
           </Button>
         </>
       }
     >
       <Stack spacing={2.5}>
         {error && <Alert severity="error">{error}</Alert>}
-        <TextField select label="ক্লাস *" value={form.classId} onChange={set("classId")}>
+        <TextField select label={t("st_form_class")} value={form.classId} onChange={set("classId")}>
           {classes.map((c) => (
             <MenuItem key={c.id} value={c.id}>
               {c.name}
@@ -102,14 +104,14 @@ export default function StudentFormDialog({
         </TextField>
         <TextField
           select
-          label="শাখা (ঐচ্ছিক)"
+          label={t("st_form_section")}
           value={form.sectionId}
           onChange={set("sectionId")}
           disabled={!form.classId}
-          helperText={!form.classId ? "আগে ক্লাস নির্বাচন করুন" : "শাখা না থাকলে খালি রাখুন"}
+          helperText={!form.classId ? t("st_pick_class_first") : t("st_section_blank")}
         >
           <MenuItem value="">
-            <em>শাখা নেই</em>
+            <em>{t("st_no_section")}</em>
           </MenuItem>
           {sectionsForClass.map((s) => (
             <MenuItem key={s.id} value={s.id}>
@@ -117,15 +119,15 @@ export default function StudentFormDialog({
             </MenuItem>
           ))}
         </TextField>
-        <TextField label="নাম *" value={form.name} onChange={set("name")} />
+        <TextField label={t("st_form_name")} value={form.name} onChange={set("name")} />
         <TextField
-          label="রোল *"
+          label={t("st_form_roll")}
           value={form.roll}
           onChange={set("roll")}
           inputProps={{ inputMode: "numeric" }}
         />
         <TextField
-          label="ফোন নম্বর *"
+          label={t("st_form_phone")}
           type="tel"
           value={form.phone}
           onChange={set("phone")}

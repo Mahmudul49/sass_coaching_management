@@ -28,6 +28,7 @@ import DataCard from "@/components/ui/DataCard";
 import StudentFormDialog from "./StudentFormDialog";
 import BulkImportDialog from "./BulkImportDialog";
 import { useToast } from "@/components/providers/ToastProvider";
+import { useI18n } from "@/components/providers/I18nProvider";
 import { deleteStudent, setStudentActive } from "@/app/[tenant]/admin/actions/students";
 import type { ClassRow, SectionRow, StudentRow } from "@/lib/admin/queries";
 import { toBnDigits } from "@/lib/format";
@@ -38,7 +39,7 @@ export default function StudentsManager({
   students,
   classes,
   sections,
-  title = "শিক্ষার্থী সমূহ",
+  title,
 }: {
   students: StudentRow[];
   classes: ClassRow[];
@@ -46,6 +47,7 @@ export default function StudentsManager({
   title?: string;
 }) {
   const toast = useToast();
+  const { t } = useI18n();
   const [formOpen, setFormOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<StudentRow | null>(null);
@@ -86,19 +88,20 @@ export default function StudentsManager({
   }
 
   function exportPdf() {
-    const clsLabel = classFilter ? classes.find((c) => c.id === classFilter)?.name : "সব ক্লাস";
+    const clsLabel = classFilter ? classes.find((c) => c.id === classFilter)?.name : t("st_all_classes");
+    const viewLabel = view === "active" ? t("st_active") : view === "inactive" ? t("st_inactive") : t("st_all");
     printReportTable({
-      title: "শিক্ষার্থী তালিকা",
-      subtitle: `ক্লাস: ${clsLabel} · ${view === "active" ? "সক্রিয়" : view === "inactive" ? "নিষ্ক্রিয়" : "সব"}`,
-      meta: [`মোট: ${toBnDigits(shown.length)} জন`],
-      head: ["রোল", "নাম", "ক্লাস", "শাখা", "ফোন", "অবস্থা"],
+      title: t("st_title"),
+      subtitle: `${t("c_class")}: ${clsLabel} · ${viewLabel}`,
+      meta: [`${t("c_total")}: ${toBnDigits(shown.length)}`],
+      head: [t("c_roll"), t("c_name"), t("c_class"), t("c_section"), t("st_phone"), t("c_status")],
       rows: shown.map((s) => [
         toBnDigits(s.roll),
         s.name,
         s.className,
         s.sectionName,
         s.phone || "—",
-        s.active ? "সক্রিয়" : "নিষ্ক্রিয়",
+        s.active ? t("st_active") : t("st_inactive"),
       ]),
       numericFrom: 6,
     });
@@ -107,8 +110,8 @@ export default function StudentsManager({
   function toggleActive(row: StudentRow) {
     start(async () => {
       const res = await setStudentActive(row.id, !row.active);
-      if (res.ok) toast.success(row.active ? "নিষ্ক্রিয় করা হয়েছে।" : "সক্রিয় করা হয়েছে।");
-      else toast.error(res.error ?? "সমস্যা হয়েছে।");
+      if (res.ok) toast.success(row.active ? t("st_deactivated") : t("st_activated"));
+      else toast.error(res.error ?? t("c_something_wrong"));
     });
   }
 
@@ -123,36 +126,36 @@ export default function StudentsManager({
 
   const columns = useMemo<GridColDef<StudentRow>[]>(
     () => [
-      { field: "roll", headerName: "রোল", width: 90 },
-      { field: "name", headerName: "নাম", flex: 1, minWidth: 140 },
-      { field: "className", headerName: "ক্লাস", width: 120 },
-      { field: "sectionName", headerName: "শাখা", width: 100 },
-      { field: "phone", headerName: "ফোন", width: 130 },
+      { field: "roll", headerName: t("c_roll"), width: 90 },
+      { field: "name", headerName: t("c_name"), flex: 1, minWidth: 140 },
+      { field: "className", headerName: t("c_class"), width: 120 },
+      { field: "sectionName", headerName: t("c_section"), width: 100 },
+      { field: "phone", headerName: t("st_phone"), width: 130 },
       {
         field: "active",
-        headerName: "অবস্থা",
+        headerName: t("c_status"),
         width: 100,
         renderCell: (p) =>
           p.row.active ? (
-            <Chip size="small" color="success" label="সক্রিয়" />
+            <Chip size="small" color="success" label={t("st_active")} />
           ) : (
-            <Chip size="small" label="নিষ্ক্রিয়" />
+            <Chip size="small" label={t("st_inactive")} />
           ),
       },
       {
         field: "actions",
-        headerName: "অ্যাকশন",
+        headerName: t("c_action"),
         width: 150,
         sortable: false,
         filterable: false,
         renderCell: (p) => (
           <>
-            <Tooltip title="সম্পাদনা">
+            <Tooltip title={t("edit")}>
               <IconButton size="small" onClick={() => openEdit(p.row)}>
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title={p.row.active ? "নিষ্ক্রিয় করুন" : "সক্রিয় করুন"}>
+            <Tooltip title={p.row.active ? t("st_deactivate") : t("st_activate")}>
               <IconButton
                 size="small"
                 color={p.row.active ? "warning" : "success"}
@@ -162,7 +165,7 @@ export default function StudentsManager({
                 {p.row.active ? <BlockIcon fontSize="small" /> : <CheckCircleIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
-            <Tooltip title="মুছুন">
+            <Tooltip title={t("delete")}>
               <IconButton size="small" color="error" onClick={() => setToDelete(p.row)}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
@@ -171,15 +174,15 @@ export default function StudentsManager({
         ),
       },
     ],
-    [pending]
+    [pending, t]
   );
 
   function confirmDelete() {
     if (!toDelete) return;
     start(async () => {
       const res = await deleteStudent(toDelete.id);
-      if (res.ok) toast.success("শিক্ষার্থী মুছে ফেলা হয়েছে।");
-      else toast.error(res.error ?? "সমস্যা হয়েছে।");
+      if (res.ok) toast.success(t("st_deleted"));
+      else toast.error(res.error ?? t("c_something_wrong"));
       setToDelete(null);
     });
   }
@@ -187,29 +190,29 @@ export default function StudentsManager({
   const renderCard = (s: StudentRow) => (
     <DataCard
       title={s.name}
-      subtitle={`${s.className} · শাখা ${s.sectionName}`}
+      subtitle={`${s.className} · ${t("c_section")} ${s.sectionName}`}
       right={
         s.active ? (
-          <Chip size="small" color="success" label="সক্রিয়" />
+          <Chip size="small" color="success" label={t("st_active")} />
         ) : (
-          <Chip size="small" label="নিষ্ক্রিয়" />
+          <Chip size="small" label={t("st_inactive")} />
         )
       }
       fields={[
-        { label: "রোল", value: toBnDigits(s.roll) },
-        { label: "ফোন", value: s.phone || "—" },
+        { label: t("c_roll"), value: toBnDigits(s.roll) },
+        { label: t("st_phone"), value: s.phone || "—" },
       ]}
       actions={[
-        { label: "সম্পাদনা", icon: <EditIcon fontSize="small" />, onClick: () => openEdit(s) },
+        { label: t("edit"), icon: <EditIcon fontSize="small" />, onClick: () => openEdit(s) },
         s.active
-          ? { label: "নিষ্ক্রিয় করুন", icon: <BlockIcon fontSize="small" />, onClick: () => toggleActive(s) }
+          ? { label: t("st_deactivate"), icon: <BlockIcon fontSize="small" />, onClick: () => toggleActive(s) }
           : {
-              label: "সক্রিয় করুন",
+              label: t("st_activate"),
               icon: <CheckCircleIcon fontSize="small" />,
               onClick: () => toggleActive(s),
             },
         {
-          label: "মুছুন",
+          label: t("delete"),
           icon: <DeleteIcon fontSize="small" />,
           danger: true,
           onClick: () => setToDelete(s),
@@ -227,7 +230,7 @@ export default function StudentsManager({
         spacing={1.5}
         sx={{ mb: 1.5 }}
       >
-        <Typography variant="h6">{title}</Typography>
+        <Typography variant="h6">{title ?? t("st_title")}</Typography>
         <Stack direction="row" spacing={1}>
           <Button
             variant="outlined"
@@ -235,7 +238,7 @@ export default function StudentsManager({
             onClick={() => setBulkOpen(true)}
             sx={{ flex: { xs: 1, sm: "initial" } }}
           >
-            Excel ইম্পোর্ট
+            {t("st_import")}
           </Button>
           <Button
             startIcon={<AddIcon />}
@@ -243,23 +246,23 @@ export default function StudentsManager({
             disabled={noMaster}
             sx={{ flex: { xs: 1, sm: "initial" } }}
           >
-            নতুন শিক্ষার্থী
+            {t("st_new")}
           </Button>
         </Stack>
       </Stack>
 
       {noMaster ? (
         <EmptyState
-          title="এখনো কোনো শিক্ষার্থী নেই"
-          description="Excel দিয়ে যোগ করুন — ক্লাস ও শাখা না থাকলে স্বয়ংক্রিয়ভাবে তৈরি হয়ে যাবে। অথবা আগে ক্লাস ও শাখা যোগ করে ম্যানুয়ালি শিক্ষার্থী যোগ করুন।"
-          actionLabel="Excel দিয়ে যোগ করুন"
+          title={t("st_empty1_title")}
+          description={t("st_empty1_desc")}
+          actionLabel={t("st_empty1_action")}
           onAction={() => setBulkOpen(true)}
         />
       ) : students.length === 0 ? (
         <EmptyState
-          title="কোনো শিক্ষার্থী নেই"
-          description="নতুন শিক্ষার্থী যোগ করুন অথবা Excel দিয়ে একসাথে যোগ করুন।"
-          actionLabel="নতুন শিক্ষার্থী যোগ করুন"
+          title={t("st_empty2_title")}
+          description={t("st_empty2_desc")}
+          actionLabel={t("st_new")}
           onAction={openCreate}
         />
       ) : (
@@ -287,19 +290,19 @@ export default function StudentsManager({
             flexWrap="wrap"
           >
             <ToggleButtonGroup size="small" exclusive value={view} onChange={(_e, v) => v && setView(v)}>
-              <ToggleButton value="active">সক্রিয় ({toBnDigits(students.length - inactiveCount)})</ToggleButton>
-              <ToggleButton value="inactive">নিষ্ক্রিয় ({toBnDigits(inactiveCount)})</ToggleButton>
-              <ToggleButton value="all">সব ({toBnDigits(students.length)})</ToggleButton>
+              <ToggleButton value="active">{t("st_active")} ({toBnDigits(students.length - inactiveCount)})</ToggleButton>
+              <ToggleButton value="inactive">{t("st_inactive")} ({toBnDigits(inactiveCount)})</ToggleButton>
+              <ToggleButton value="all">{t("st_all")} ({toBnDigits(students.length)})</ToggleButton>
             </ToggleButtonGroup>
             <TextField
               select
               size="small"
-              label="ক্লাস"
+              label={t("c_class")}
               value={classFilter}
               onChange={(e) => setClassFilter(e.target.value)}
               sx={{ minWidth: 150 }}
             >
-              <MenuItem value="">সব ক্লাস</MenuItem>
+              <MenuItem value="">{t("st_all_classes")}</MenuItem>
               {classes.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
                   {c.name}
@@ -340,7 +343,7 @@ export default function StudentsManager({
       />
       <ConfirmDialog
         open={!!toDelete}
-        message={`"${toDelete?.name ?? ""}" কে মুছে ফেলতে চান?`}
+        message={`"${toDelete?.name ?? ""}" ${t("st_delete_q")}`}
         loading={pending}
         onConfirm={confirmDelete}
         onClose={() => setToDelete(null)}
