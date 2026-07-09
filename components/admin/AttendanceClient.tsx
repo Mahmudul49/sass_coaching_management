@@ -17,6 +17,7 @@ import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/providers/ToastProvider";
+import { useI18n } from "@/components/providers/I18nProvider";
 import { saveAttendance, resendAttendanceSms } from "@/app/[tenant]/admin/actions/attendance";
 import type { ClassRow, StudentRow } from "@/lib/admin/queries";
 import type { AttendanceStatus } from "@/lib/db/collections";
@@ -40,6 +41,7 @@ export default function AttendanceClient({
   const router = useRouter();
   const pathname = usePathname();
   const toast = useToast();
+  const { t } = useI18n();
   const [pending, start] = useTransition();
 
   const initial = useMemo(() => {
@@ -76,19 +78,19 @@ export default function AttendanceClient({
       if (res.ok) {
         toast.success(
           smsEnabled
-            ? `সংরক্ষিত। ${toBnDigits(res.smsSent ?? 0)} টি মেসেজ পাঠানো হয়েছে।`
-            : "উপস্থিতি সংরক্ষিত হয়েছে।"
+            ? `${t("att_saved_sms")} ${toBnDigits(res.smsSent ?? 0)} ${t("att_msgs_sent")}`
+            : t("att_saved")
         );
         router.refresh();
-      } else toast.error(res.error ?? "সমস্যা হয়েছে।");
+      } else toast.error(res.error ?? t("c_something_wrong"));
     });
   }
 
   function resend() {
     start(async () => {
       const res = await resendAttendanceSms(classId, date);
-      if (res.ok) toast.success(`${toBnDigits(res.smsSent ?? 0)} টি মেসেজ পুনরায় পাঠানো হয়েছে।`);
-      else toast.error(res.error ?? "সমস্যা হয়েছে।");
+      if (res.ok) toast.success(`${toBnDigits(res.smsSent ?? 0)} ${t("att_msgs_resent")}`);
+      else toast.error(res.error ?? t("c_something_wrong"));
     });
   }
 
@@ -99,7 +101,7 @@ export default function AttendanceClient({
       <Card>
         <CardContent>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <TextField select label="ক্লাস" value={classId} onChange={(e) => navigate({ classId: e.target.value })}>
+            <TextField select label={t("c_class")} value={classId} onChange={(e) => navigate({ classId: e.target.value })}>
               {classes.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
                   {c.name}
@@ -108,7 +110,7 @@ export default function AttendanceClient({
             </TextField>
             <TextField
               type="date"
-              label="তারিখ"
+              label={t("att_date")}
               value={date}
               onChange={(e) => navigate({ date: e.target.value })}
               InputLabelProps={{ shrink: true }}
@@ -117,15 +119,13 @@ export default function AttendanceClient({
         </CardContent>
       </Card>
 
-      {!smsEnabled && (
-        <Alert severity="info">এই সেন্টারে উপস্থিতির SMS বন্ধ আছে। সেটিংস থেকে চালু করতে পারেন।</Alert>
-      )}
+      {!smsEnabled && <Alert severity="info">{t("att_sms_off")}</Alert>}
 
       {students.length === 0 ? (
         <Card sx={{ p: 2 }}>
           <EmptyState
-            title="এই ক্লাসে কোনো শিক্ষার্থী নেই"
-            description="অন্য ক্লাস নির্বাচন করুন অথবা শিক্ষার্থী যোগ করুন।"
+            title={t("att_no_students")}
+            description={t("att_no_students_desc")}
           />
         </Card>
       ) : (
@@ -134,10 +134,10 @@ export default function AttendanceClient({
             <CardContent sx={{ pb: 1 }}>
               <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
                 <Button fullWidth variant="outlined" color="success" onClick={() => setAll("present")}>
-                  সবাইকে উপস্থিত
+                  {t("att_all_present")}
                 </Button>
                 <Button fullWidth variant="outlined" color="error" onClick={() => setAll("absent")}>
-                  সবাইকে অনুপস্থিত
+                  {t("att_all_absent")}
                 </Button>
               </Stack>
               <Divider />
@@ -157,7 +157,7 @@ export default function AttendanceClient({
                         {s.name}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        রোল {toBnDigits(s.roll)} · {s.sectionName}
+                        {t("c_roll")} {toBnDigits(s.roll)} · {s.sectionName}
                       </Typography>
                     </Box>
                     <ToggleButtonGroup
@@ -174,14 +174,14 @@ export default function AttendanceClient({
                         color="success"
                         sx={{ px: 1.5, "&.Mui-selected": { bgcolor: "success.main", color: "#fff", "&:hover": { bgcolor: "success.dark" } } }}
                       >
-                        উপস্থিত
+                        {t("att_present")}
                       </ToggleButton>
                       <ToggleButton
                         value="absent"
                         color="error"
                         sx={{ px: 1.5, "&.Mui-selected": { bgcolor: "error.main", color: "#fff", "&:hover": { bgcolor: "error.dark" } } }}
                       >
-                        অনুপস্থিত
+                        {t("att_absent")}
                       </ToggleButton>
                     </ToggleButtonGroup>
                   </Stack>
@@ -206,7 +206,7 @@ export default function AttendanceClient({
           >
             <Chip
               color="success"
-              label={`উপস্থিত ${toBnDigits(presentCount)}/${toBnDigits(students.length)}`}
+              label={`${t("att_present")} ${toBnDigits(presentCount)}/${toBnDigits(students.length)}`}
               sx={{ fontWeight: 700 }}
             />
             <Box sx={{ flex: 1 }} />
@@ -216,7 +216,7 @@ export default function AttendanceClient({
               </Button>
             )}
             <Button onClick={save} disabled={pending} sx={{ minWidth: 140 }}>
-              {pending ? "সংরক্ষণ..." : "সংরক্ষণ করুন"}
+              {pending ? t("att_saving") : t("att_save")}
             </Button>
           </Paper>
         </>

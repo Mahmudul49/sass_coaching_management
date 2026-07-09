@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { listClasses, listStudents, getAttendanceMap } from "@/lib/admin/queries";
 import EmptyState from "@/components/ui/EmptyState";
 import AttendanceClient from "@/components/admin/AttendanceClient";
+import { getT } from "@/lib/i18n/server";
 import { todayISO } from "@/lib/format";
 
 export default async function AttendancePage({
@@ -16,12 +17,13 @@ export default async function AttendancePage({
 }) {
   const { tenant: slug } = await params;
   const { db, tenant } = await requireAdmin(slug);
+  const t = await getT();
   const classes = await listClasses(db);
 
   if (classes.length === 0) {
     return (
       <Stack spacing={2}>
-        <Typography variant="h5">উপস্থিতি</Typography>
+        <Typography variant="h5">{t("nav_attendance")}</Typography>
         <Card sx={{ p: 2 }}>
           <EmptyState
             title="আগে ক্লাস ও শিক্ষার্থী যোগ করুন"
@@ -43,7 +45,7 @@ export default async function AttendancePage({
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h5">উপস্থিতি</Typography>
+      <Typography variant="h5">{t("nav_attendance")}</Typography>
       <AttendanceClient
         classes={classes}
         classId={classId}
