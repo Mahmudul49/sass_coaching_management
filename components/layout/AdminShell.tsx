@@ -29,7 +29,9 @@ import AssessmentIcon from "@mui/icons-material/Assessment";
 import SettingsIcon from "@mui/icons-material/Settings";
 import SchoolIcon from "@mui/icons-material/School";
 import LogoutButton from "./LogoutButton";
+import LanguageToggle from "./LanguageToggle";
 import { tenantAdminBaseFromPath } from "./tenantAdminBase";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 const DRAWER_WIDTH = 256;
 
@@ -43,20 +45,21 @@ export default function AdminShell({
   const pathname = usePathname();
   const base = tenantAdminBaseFromPath(pathname);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { t } = useI18n();
 
   const nav = useMemo(
     () => [
-      { href: base, label: "ড্যাশবোর্ড", icon: <DashboardIcon />, primary: true },
-      { href: `${base}/students`, label: "শিক্ষার্থী", icon: <GroupsIcon />, primary: true },
-      { href: `${base}/attendance`, label: "উপস্থিতি", icon: <FactCheckIcon />, primary: true },
-      { href: `${base}/payments`, label: "পেমেন্ট", icon: <PaidIcon />, primary: true },
-      { href: `${base}/reports`, label: "রিপোর্ট", icon: <AssessmentIcon />, primary: true },
-      { href: `${base}/classes`, label: "ক্লাস", icon: <ClassIcon /> },
-      { href: `${base}/sections`, label: "শাখা", icon: <CategoryIcon /> },
-      { href: `${base}/fees`, label: "ফি স্ট্রাকচার", icon: <ReceiptLongIcon /> },
-      { href: `${base}/settings`, label: "সেটিংস", icon: <SettingsIcon /> },
+      { href: base, label: t("nav_dashboard"), icon: <DashboardIcon />, primary: true },
+      { href: `${base}/students`, label: t("nav_students"), icon: <GroupsIcon />, primary: true },
+      { href: `${base}/attendance`, label: t("nav_attendance"), icon: <FactCheckIcon />, primary: true },
+      { href: `${base}/payments`, label: t("nav_payments"), icon: <PaidIcon />, primary: true },
+      { href: `${base}/reports`, label: t("nav_reports"), icon: <AssessmentIcon />, primary: true },
+      { href: `${base}/classes`, label: t("nav_classes"), icon: <ClassIcon /> },
+      { href: `${base}/sections`, label: t("nav_sections"), icon: <CategoryIcon /> },
+      { href: `${base}/fees`, label: t("nav_fees"), icon: <ReceiptLongIcon /> },
+      { href: `${base}/settings`, label: t("nav_settings"), icon: <SettingsIcon /> },
     ],
-    [base]
+    [base, t]
   );
   const primary = nav.filter((n) => n.primary);
 
@@ -120,6 +123,7 @@ export default function AdminShell({
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }} noWrap>
             {centerName}
           </Typography>
+          <LanguageToggle />
           <LogoutButton />
         </Toolbar>
       </AppBar>

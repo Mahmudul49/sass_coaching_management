@@ -24,12 +24,14 @@ import SetupChecklist from "@/components/admin/SetupChecklist";
 import StudentsManager from "@/components/admin/StudentsManager";
 import MonthlyCollectionChart from "@/components/admin/MonthlyCollectionChart";
 import QuickActions from "@/components/admin/QuickActions";
+import { getT } from "@/lib/i18n/server";
 import { tenantAdminPath } from "@/lib/tenant/paths";
 import { taka, currentMonth, currentYear, monthName, toBnDigits } from "@/lib/format";
 
 export default async function AdminDashboard({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params;
   const { db } = await requireAdmin(tenant);
+  const t = await getT();
   const status = await getSetupStatus(db);
 
   // First run: no classes yet -> jump straight into the guided wizard.
@@ -45,12 +47,12 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
   ]);
 
   const cards = [
-    { label: "সক্রিয় শিক্ষার্থী", value: toBnDigits(stats.activeStudents), icon: <GroupsIcon />, color: "#0F7A6B" },
-    { label: "আজকের আদায়", value: taka(stats.todayCollection), icon: <TodayIcon />, color: "#0284C7" },
-    { label: `${monthName(month)} মাসের আদায়`, value: taka(stats.monthCollection), icon: <PaidIcon />, color: "#16A34A" },
-    { label: `${monthName(month)} মাসের বকেয়া`, value: taka(stats.monthDue), icon: <MoneyOffIcon />, color: "#DC2626" },
-    { label: `${toBnDigits(year)} সালের আদায়`, value: taka(stats.yearCollection), icon: <AccountBalanceWalletIcon />, color: "#7C3AED" },
-    { label: `${toBnDigits(year)} সালের বকেয়া`, value: taka(stats.yearDue), icon: <CalendarMonthIcon />, color: "#B45309" },
+    { label: t("active_students"), value: toBnDigits(stats.activeStudents), icon: <GroupsIcon />, color: "#0F7A6B" },
+    { label: t("today_collection"), value: taka(stats.todayCollection), icon: <TodayIcon />, color: "#0284C7" },
+    { label: t("month_collection"), value: taka(stats.monthCollection), icon: <PaidIcon />, color: "#16A34A" },
+    { label: t("month_due"), value: taka(stats.monthDue), icon: <MoneyOffIcon />, color: "#DC2626" },
+    { label: t("year_collection"), value: taka(stats.yearCollection), icon: <AccountBalanceWalletIcon />, color: "#7C3AED" },
+    { label: t("year_due"), value: taka(stats.yearDue), icon: <CalendarMonthIcon />, color: "#B45309" },
   ];
 
   const monthPayable = stats.monthCollection + stats.monthDue;
@@ -58,12 +60,12 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
 
   return (
     <Stack spacing={2.5}>
-      <Typography variant="h5">ড্যাশবোর্ড</Typography>
+      <Typography variant="h5">{t("nav_dashboard")}</Typography>
 
       <QuickActions base={tenantAdminPath(tenant)} />
 
       <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 0.5 }}>
-        আর্থিক সারসংক্ষেপ
+        {t("financial_summary")}
       </Typography>
       <Box
         sx={{

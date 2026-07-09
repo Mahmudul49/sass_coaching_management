@@ -1,0 +1,81 @@
+/**
+ * Central message catalogue. Add a key to BOTH `bn` and `en`. Components read
+ * via `t("key")` (client: useI18n, server: getT). Missing key falls back to the
+ * key itself, so migration can be incremental without breaking the UI.
+ */
+export const dict = {
+  bn: {
+    // shell / nav
+    nav_dashboard: "ড্যাশবোর্ড",
+    nav_students: "শিক্ষার্থী",
+    nav_attendance: "উপস্থিতি",
+    nav_payments: "পেমেন্ট",
+    nav_reports: "রিপোর্ট",
+    nav_classes: "ক্লাস",
+    nav_sections: "শাখা",
+    nav_fees: "ফি স্ট্রাকচার",
+    nav_settings: "সেটিংস",
+    logout: "লগআউট",
+    menu: "মেনু",
+    language: "ভাষা",
+    superadmin: "সুপার অ্যাডমিন",
+    // common actions
+    save: "সংরক্ষণ",
+    cancel: "বাতিল",
+    edit: "সম্পাদনা",
+    delete: "মুছুন",
+    search: "খুঁজুন",
+    add_new: "নতুন যোগ করুন",
+    export_excel: "Excel",
+    export_pdf: "PDF",
+    // dashboard
+    financial_summary: "আর্থিক সারসংক্ষেপ",
+    active_students: "সক্রিয় শিক্ষার্থী",
+    today_collection: "আজকের আদায়",
+    month_collection: "এই মাসের আদায়",
+    month_due: "এই মাসের বকেয়া",
+    year_collection: "এই বছরের আদায়",
+    year_due: "এই বছরের বকেয়া",
+    // fee sectors (dynamic fee labels)
+    fee_admission: "ভর্তি ফি",
+    fee_monthly: "মাসিক ফি",
+    fee_model_half: "ষান্মাসিক মডেল টেস্ট",
+    fee_model_annual: "বার্ষিক মডেল টেস্ট",
+  },
+  en: {
+    nav_dashboard: "Dashboard",
+    nav_students: "Students",
+    nav_attendance: "Attendance",
+    nav_payments: "Payments",
+    nav_reports: "Reports",
+    nav_classes: "Classes",
+    nav_sections: "Sections",
+    nav_fees: "Fee Structure",
+    nav_settings: "Settings",
+    logout: "Logout",
+    menu: "Menu",
+    language: "Language",
+    superadmin: "Super Admin",
+    save: "Save",
+    cancel: "Cancel",
+    edit: "Edit",
+    delete: "Delete",
+    search: "Search",
+    add_new: "Add New",
+    export_excel: "Excel",
+    export_pdf: "PDF",
+    financial_summary: "Financial Summary",
+    active_students: "Active Students",
+    today_collection: "Today's Collection",
+    month_collection: "This Month Collected",
+    month_due: "This Month Due",
+    year_collection: "This Year Collected",
+    year_due: "This Year Due",
+    fee_admission: "Admission Fee",
+    fee_monthly: "Monthly Fee",
+    fee_model_half: "Half-yearly Model Test",
+    fee_model_annual: "Annual Model Test",
+  },
+} as const;
+
+export type MessageKey = keyof (typeof dict)["bn"];

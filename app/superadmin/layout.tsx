@@ -7,6 +7,7 @@ import Container from "@mui/material/Container";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { requireSuperAdmin } from "@/lib/auth/guards";
 import LogoutButton from "@/components/layout/LogoutButton";
+import LanguageToggle from "@/components/layout/LanguageToggle";
 import SuperAdminNav from "@/components/superadmin/SuperAdminNav";
 
 export default async function SuperAdminLayout({ children }: { children: ReactNode }) {
@@ -20,6 +21,7 @@ export default async function SuperAdminLayout({ children }: { children: ReactNo
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             সুপার অ্যাডমিন
           </Typography>
+          <LanguageToggle />
           <LogoutButton />
         </Toolbar>
       </AppBar>
