@@ -7,8 +7,18 @@ import {
 } from "@/lib/db/collections";
 import { toObjectId } from "@/lib/db/oid";
 import { revalidateTenantAdminLayout } from "@/lib/tenant/revalidate";
+import { listStudentsPaged, type StudentsPage } from "@/lib/admin/queries";
 
 export type ActionResult = { ok: boolean; error?: string };
+
+/** Cursor "load more" for the paginated students browser (tenant-scoped). */
+export async function loadStudentsPage(
+  filter: { classId?: string; status?: "active" | "inactive" | "all"; search?: string },
+  cursor: string | null
+): Promise<StudentsPage> {
+  const { db } = await requireAdminFromRequest();
+  return listStudentsPaged(db, filter, { cursor, limit: 50 });
+}
 export type StudentInput = {
   classId: string;
   sectionId: string;

@@ -11,6 +11,7 @@ import {
   type AttendanceStatus,
 } from "@/lib/db/collections";
 import { monthName, toBnDigits } from "@/lib/format";
+import { toObjectId } from "@/lib/db/oid";
 
 /** Plain (serialisable) row shapes handed to client components. */
 export type ClassRow = { id: string; name: string; order: number };
@@ -124,10 +125,27 @@ export async function listStudents(
     .findArray(q, {
       sort: { roll: 1 },
       // Projection: fetch only fields the UI needs — cuts Atlas transfer + memory.
-      projection: { classId: 1, sectionId: 1, name: 1, roll: 1, phone: 1, active: 1 },
+      projection: STUDENT_ROW_PROJECTION,
     })) as StudentDoc[];
 
-  return docs.map((s) => ({
+  return docs.map((s) => mapStudentRow(s, classMap, sectionMap));
+}
+
+const STUDENT_ROW_PROJECTION = {
+  classId: 1,
+  sectionId: 1,
+  name: 1,
+  roll: 1,
+  phone: 1,
+  active: 1,
+} as const;
+
+function mapStudentRow(
+  s: StudentDoc,
+  classMap: Map<string, string>,
+  sectionMap: Map<string, string>
+): StudentRow {
+  return {
     id: s._id.toString(),
     classId: s.classId,
     sectionId: s.sectionId,
@@ -137,7 +155,66 @@ export async function listStudents(
     roll: s.roll,
     phone: s.phone,
     active: s.active !== false,
-  }));
+  };
+}
+
+export type StudentsPage = { rows: StudentRow[]; nextCursor: string | null };
+
+/**
+ * Cursor-paginated student list — the scalable path for 100K+ students. Cursor
+ * is the last `_id` of the previous page (stable, unique, index-backed). Fetches
+ * `limit + 1` to detect a next page without a separate count. Search is a
+ * case-insensitive regex on name/roll/phone.
+ */
+export async function listStudentsPaged(
+  db: ScopedDb,
+  filter: { classId?: string; status?: "active" | "inactive" | "all"; search?: string } = {},
+  page: { limit?: number; cursor?: string | null } = {}
+): Promise<StudentsPage> {
+  const limit = Math.min(Math.max(page.limit ?? 50, 1), 200);
+  const [classes, sections] = await Promise.all([listClasses(db), listSections(db)]);
+  const classMap = new Map(classes.map((c) => [c.id, c.name]));
+  const sectionMap = new Map(sections.map((s) => [s.id, s.name]));
+
+  const q: Record<string, unknown> = {};
+  if (filter.classId) q.classId = filter.classId;
+  if (filter.status === "active") q.active = true;
+  else if (filter.status === "inactive") q.active = false;
+  const search = filter.search?.trim();
+  if (search) {
+    const esc = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(esc, "i");
+    q.$or = [{ name: re }, { roll: re }, { phone: re }];
+  }
+  if (page.cursor) {
+    const oid = toObjectId(page.cursor);
+    if (oid) q._id = { $gt: oid };
+  }
+
+  const docs = (await db.collection<StudentDoc>(Collections.students).findArray(q, {
+    sort: { _id: 1 },
+    limit: limit + 1,
+    projection: STUDENT_ROW_PROJECTION,
+  })) as StudentDoc[];
+
+  const hasMore = docs.length > limit;
+  const slice = hasMore ? docs.slice(0, limit) : docs;
+  const rows = slice.map((s) => mapStudentRow(s, classMap, sectionMap));
+  const nextCursor = hasMore ? slice[slice.length - 1]._id.toString() : null;
+  return { rows, nextCursor };
+}
+
+/** Active student count per class (single aggregation, no full scan to client). */
+export async function getActiveCountsByClass(db: ScopedDb): Promise<Record<string, number>> {
+  const agg = await (
+    await db.collection<StudentDoc>(Collections.students).aggregate<{ _id: string; n: number }>([
+      { $match: { active: true } },
+      { $group: { _id: "$classId", n: { $sum: 1 } } },
+    ])
+  ).toArray();
+  const m: Record<string, number> = {};
+  for (const r of agg) m[r._id] = r.n;
+  return m;
 }
 
 export type SetupStatus = {

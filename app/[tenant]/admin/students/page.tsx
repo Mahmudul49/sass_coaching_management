@@ -1,23 +1,59 @@
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { requireAdmin } from "@/lib/auth/guards";
-import { listStudents, listClasses, listSections } from "@/lib/admin/queries";
-import StudentsManager from "@/components/admin/StudentsManager";
+import {
+  listStudentsPaged,
+  getActiveCountsByClass,
+  listClasses,
+  listSections,
+} from "@/lib/admin/queries";
+import StudentsBrowser from "@/components/admin/StudentsBrowser";
 import { getT } from "@/lib/i18n/server";
 
-export default async function StudentsPage({ params }: { params: Promise<{ tenant: string }> }) {
+type View = "active" | "inactive" | "all";
+
+export default async function StudentsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenant: string }>;
+  searchParams: Promise<{ classId?: string; view?: string; q?: string }>;
+}) {
   const { tenant } = await params;
+  const sp = await searchParams;
   const { db } = await requireAdmin(tenant);
   const t = await getT();
-  const [students, classes, sections] = await Promise.all([
-    listStudents(db),
+
+  const classId = sp.classId?.trim() || "";
+  const view: View = sp.view === "inactive" || sp.view === "all" ? sp.view : "active";
+  const search = sp.q?.trim() || "";
+
+  const [initial, activeCounts, classes, sections] = await Promise.all([
+    listStudentsPaged(
+      db,
+      { classId: classId || undefined, status: view, search: search || undefined },
+      { limit: 50 }
+    ),
+    getActiveCountsByClass(db),
     listClasses(db),
     listSections(db),
   ]);
+
+  const totalActive = Object.values(activeCounts).reduce((a, b) => a + b, 0);
+
   return (
     <Stack spacing={2}>
       <Typography variant="h5">{t("nav_students")}</Typography>
-      <StudentsManager students={students} classes={classes} sections={sections} />
+      <StudentsBrowser
+        classes={classes}
+        sections={sections}
+        activeCounts={activeCounts}
+        totalActive={totalActive}
+        initial={initial}
+        classId={classId}
+        view={view}
+        search={search}
+      />
     </Stack>
   );
 }
