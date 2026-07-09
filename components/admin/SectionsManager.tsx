@@ -18,6 +18,7 @@ import ResponsiveDialog from "@/components/ui/ResponsiveDialog";
 import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import DataCard from "@/components/ui/DataCard";
 import { useToast } from "@/components/providers/ToastProvider";
+import { useI18n } from "@/components/providers/I18nProvider";
 import { createSection, updateSection, deleteSection } from "@/app/[tenant]/admin/actions/master";
 import type { ClassRow, SectionRow } from "@/lib/admin/queries";
 
@@ -29,6 +30,7 @@ export default function SectionsManager({
   sections: SectionRow[];
 }) {
   const toast = useToast();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SectionRow | null>(null);
   const [toDelete, setToDelete] = useState<SectionRow | null>(null);
@@ -56,9 +58,9 @@ export default function SectionsManager({
         ? await updateSection(editing.id, form.name)
         : await createSection(form.classId, form.name);
       if (res.ok) {
-        toast.success(editing ? "শাখা আপডেট হয়েছে।" : "শাখা যোগ হয়েছে।");
+        toast.success(editing ? t("sec_updated") : t("sec_added"));
         setOpen(false);
-      } else setError(res.error ?? "সমস্যা হয়েছে।");
+      } else setError(res.error ?? t("c_something_wrong"));
     });
   }
 
@@ -66,19 +68,19 @@ export default function SectionsManager({
     if (!toDelete) return;
     start(async () => {
       const res = await deleteSection(toDelete.id);
-      if (res.ok) toast.success("শাখা মুছে ফেলা হয়েছে।");
-      else toast.error(res.error ?? "সমস্যা হয়েছে।");
+      if (res.ok) toast.success(t("sec_deleted"));
+      else toast.error(res.error ?? t("c_something_wrong"));
       setToDelete(null);
     });
   }
 
   const columns = useMemo<GridColDef<SectionRow>[]>(
     () => [
-      { field: "className", headerName: "ক্লাস", flex: 1, minWidth: 140 },
-      { field: "name", headerName: "শাখা", flex: 1, minWidth: 120 },
+      { field: "className", headerName: t("c_class"), flex: 1, minWidth: 140 },
+      { field: "name", headerName: t("nav_sections"), flex: 1, minWidth: 120 },
       {
         field: "actions",
-        headerName: "অ্যাকশন",
+        headerName: t("c_action"),
         width: 110,
         sortable: false,
         renderCell: (p) => (
@@ -93,16 +95,16 @@ export default function SectionsManager({
         ),
       },
     ],
-    []
+    [t]
   );
 
   const renderCard = (s: SectionRow) => (
     <DataCard
       title={`${s.className} — ${s.name}`}
-      subtitle="শাখা"
+      subtitle={t("nav_sections")}
       actions={[
-        { label: "সম্পাদনা", icon: <EditIcon fontSize="small" />, onClick: () => openEdit(s) },
-        { label: "মুছুন", icon: <DeleteIcon fontSize="small" />, danger: true, onClick: () => setToDelete(s) },
+        { label: t("edit"), icon: <EditIcon fontSize="small" />, onClick: () => openEdit(s) },
+        { label: t("delete"), icon: <DeleteIcon fontSize="small" />, danger: true, onClick: () => setToDelete(s) },
       ]}
     />
   );
@@ -110,10 +112,7 @@ export default function SectionsManager({
   if (classes.length === 0) {
     return (
       <Card sx={{ p: 2 }}>
-        <EmptyState
-          title="আগে ক্লাস তৈরি করুন"
-          description="শাখা যোগ করার আগে অন্তত একটি ক্লাস থাকতে হবে।"
-        />
+        <EmptyState title={t("sec_need_class")} description={t("sec_need_class_desc")} />
       </Card>
     );
   }
@@ -121,17 +120,17 @@ export default function SectionsManager({
   return (
     <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-        <Typography variant="h6">শাখা</Typography>
+        <Typography variant="h6">{t("nav_sections")}</Typography>
         <Button startIcon={<AddIcon />} onClick={openCreate}>
-          নতুন শাখা
+          {t("sec_new")}
         </Button>
       </Stack>
 
       {sections.length === 0 ? (
         <EmptyState
-          title="কোনো শাখা নেই"
-          description="প্রতিটি ক্লাসের জন্য শাখা যোগ করুন (যেমন: A, B)।"
-          actionLabel="নতুন শাখা যোগ করুন"
+          title={t("sec_empty_title")}
+          description={t("sec_empty_desc")}
+          actionLabel={t("sec_empty_action")}
           onAction={openCreate}
         />
       ) : (
@@ -148,15 +147,15 @@ export default function SectionsManager({
         open={open}
         onClose={() => setOpen(false)}
         disableClose={pending}
-        title={editing ? "শাখা সম্পাদনা" : "নতুন শাখা"}
+        title={editing ? t("sec_edit") : t("sec_new_title")}
         maxWidth="xs"
         actions={
           <>
             <Button variant="text" color="inherit" onClick={() => setOpen(false)} disabled={pending}>
-              বাতিল
+              {t("cancel")}
             </Button>
             <Button onClick={submit} disabled={pending}>
-              সংরক্ষণ
+              {t("save")}
             </Button>
           </>
         }
@@ -165,7 +164,7 @@ export default function SectionsManager({
           {error && <Alert severity="error">{error}</Alert>}
           <TextField
             select
-            label="ক্লাস *"
+            label={t("st_form_class")}
             value={form.classId}
             onChange={(e) => setForm((f) => ({ ...f, classId: e.target.value }))}
             disabled={!!editing}
@@ -177,7 +176,7 @@ export default function SectionsManager({
             ))}
           </TextField>
           <TextField
-            label="শাখার নাম *"
+            label={t("sec_name")}
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             autoFocus
@@ -187,7 +186,7 @@ export default function SectionsManager({
 
       <ConfirmDialog
         open={!!toDelete}
-        message={`"${toDelete?.className ?? ""} - ${toDelete?.name ?? ""}" শাখা মুছে ফেলতে চান?`}
+        message={`"${toDelete?.className ?? ""} - ${toDelete?.name ?? ""}" ${t("sec_delete_q")}`}
         loading={pending}
         onConfirm={confirmDelete}
         onClose={() => setToDelete(null)}

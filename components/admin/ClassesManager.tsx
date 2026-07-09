@@ -17,12 +17,14 @@ import ResponsiveDialog from "@/components/ui/ResponsiveDialog";
 import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import DataCard from "@/components/ui/DataCard";
 import { useToast } from "@/components/providers/ToastProvider";
+import { useI18n } from "@/components/providers/I18nProvider";
 import { createClass, updateClass, deleteClass } from "@/app/[tenant]/admin/actions/master";
 import type { ClassRow } from "@/lib/admin/queries";
 import { toBnDigits } from "@/lib/format";
 
 export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
   const toast = useToast();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ClassRow | null>(null);
   const [toDelete, setToDelete] = useState<ClassRow | null>(null);
@@ -51,9 +53,9 @@ export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
         ? await updateClass(editing.id, form.name, order)
         : await createClass(form.name, order);
       if (res.ok) {
-        toast.success(editing ? "ক্লাস আপডেট হয়েছে।" : "ক্লাস যোগ হয়েছে।");
+        toast.success(editing ? t("cls_updated") : t("cls_added"));
         setOpen(false);
-      } else setError(res.error ?? "সমস্যা হয়েছে।");
+      } else setError(res.error ?? t("c_something_wrong"));
     });
   }
 
@@ -61,19 +63,19 @@ export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
     if (!toDelete) return;
     start(async () => {
       const res = await deleteClass(toDelete.id);
-      if (res.ok) toast.success("ক্লাস মুছে ফেলা হয়েছে।");
-      else toast.error(res.error ?? "সমস্যা হয়েছে।");
+      if (res.ok) toast.success(t("cls_deleted"));
+      else toast.error(res.error ?? t("c_something_wrong"));
       setToDelete(null);
     });
   }
 
   const columns = useMemo<GridColDef<ClassRow>[]>(
     () => [
-      { field: "order", headerName: "ক্রম", width: 90, valueFormatter: (v: number) => toBnDigits(v ?? 0) },
-      { field: "name", headerName: "ক্লাসের নাম", flex: 1, minWidth: 160 },
+      { field: "order", headerName: t("cls_order"), width: 90, valueFormatter: (v: number) => toBnDigits(v ?? 0) },
+      { field: "name", headerName: t("nav_classes"), flex: 1, minWidth: 160 },
       {
         field: "actions",
-        headerName: "অ্যাকশন",
+        headerName: t("c_action"),
         width: 110,
         sortable: false,
         renderCell: (p) => (
@@ -88,16 +90,16 @@ export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
         ),
       },
     ],
-    []
+    [t]
   );
 
   const renderCard = (c: ClassRow) => (
     <DataCard
       title={c.name}
-      subtitle={`ক্রম: ${toBnDigits(c.order)}`}
+      subtitle={`${t("cls_order")}: ${toBnDigits(c.order)}`}
       actions={[
-        { label: "সম্পাদনা", icon: <EditIcon fontSize="small" />, onClick: () => openEdit(c) },
-        { label: "মুছুন", icon: <DeleteIcon fontSize="small" />, danger: true, onClick: () => setToDelete(c) },
+        { label: t("edit"), icon: <EditIcon fontSize="small" />, onClick: () => openEdit(c) },
+        { label: t("delete"), icon: <DeleteIcon fontSize="small" />, danger: true, onClick: () => setToDelete(c) },
       ]}
     />
   );
@@ -105,17 +107,17 @@ export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
   return (
     <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-        <Typography variant="h6">ক্লাস</Typography>
+        <Typography variant="h6">{t("nav_classes")}</Typography>
         <Button startIcon={<AddIcon />} onClick={openCreate}>
-          নতুন ক্লাস
+          {t("cls_new")}
         </Button>
       </Stack>
 
       {classes.length === 0 ? (
         <EmptyState
-          title="কোনো ক্লাস নেই"
-          description="প্রথমে একটি ক্লাস যোগ করুন (যেমন: ষষ্ঠ শ্রেণি)।"
-          actionLabel="নতুন ক্লাস যোগ করুন"
+          title={t("cls_empty_title")}
+          description={t("cls_empty_desc")}
+          actionLabel={t("cls_empty_action")}
           onAction={openCreate}
         />
       ) : (
@@ -132,15 +134,15 @@ export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
         open={open}
         onClose={() => setOpen(false)}
         disableClose={pending}
-        title={editing ? "ক্লাস সম্পাদনা" : "নতুন ক্লাস"}
+        title={editing ? t("cls_edit") : t("cls_new_title")}
         maxWidth="xs"
         actions={
           <>
             <Button variant="text" color="inherit" onClick={() => setOpen(false)} disabled={pending}>
-              বাতিল
+              {t("cancel")}
             </Button>
             <Button onClick={submit} disabled={pending}>
-              সংরক্ষণ
+              {t("save")}
             </Button>
           </>
         }
@@ -148,25 +150,25 @@ export default function ClassesManager({ classes }: { classes: ClassRow[] }) {
         <Stack spacing={2.5}>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField
-            label="ক্লাসের নাম *"
+            label={t("cls_name")}
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             autoFocus
           />
           <TextField
-            label="ক্রম"
+            label={t("cls_order")}
             type="number"
             value={form.order}
             onChange={(e) => setForm((f) => ({ ...f, order: e.target.value }))}
             inputProps={{ inputMode: "numeric" }}
-            helperText="কম সংখ্যা আগে দেখাবে"
+            helperText={t("cls_order_help")}
           />
         </Stack>
       </ResponsiveDialog>
 
       <ConfirmDialog
         open={!!toDelete}
-        message={`"${toDelete?.name ?? ""}" ক্লাস মুছে ফেলতে চান? এর শাখা ও ফি স্ট্রাকচারও মুছে যাবে।`}
+        message={`"${toDelete?.name ?? ""}" ${t("cls_delete_q")}`}
         loading={pending}
         onConfirm={confirmDelete}
         onClose={() => setToDelete(null)}
