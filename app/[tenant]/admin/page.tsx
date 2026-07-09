@@ -87,7 +87,7 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
         <CardContent>
           <Stack direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="body2" color="text.secondary">
-              {monthName(month)} মাসের আদায় অগ্রগতি
+              {monthName(month)} {t("dash_progress_suffix")}
             </Typography>
             <Typography variant="body2" fontWeight={700}>
               {toBnDigits(monthPct)}%
@@ -101,10 +101,10 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
           />
           <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
             <Typography variant="caption" color="success.main">
-              আদায়: {taka(stats.monthCollection)}
+              {t("dash_collected")}: {taka(stats.monthCollection)}
             </Typography>
             <Typography variant="caption" color="error.main">
-              বকেয়া: {taka(stats.monthDue)}
+              {t("dash_due")}: {taka(stats.monthDue)}
             </Typography>
           </Stack>
         </CardContent>

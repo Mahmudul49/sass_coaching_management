@@ -1,3 +1,4 @@
+"use client";
 import type { ReactNode } from "react";
 import NextLink from "next/link";
 import Box from "@mui/material/Box";
@@ -8,14 +9,16 @@ import PaidIcon from "@mui/icons-material/Paid";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 /** Big, thumb-friendly shortcut tiles to the most-used actions. */
 export default function QuickActions({ base }: { base: string }) {
+  const { t } = useI18n();
   const actions: { href: string; label: string; icon: ReactNode; color: string }[] = [
-    { href: `${base}/payments`, label: "পেমেন্ট", icon: <PaidIcon />, color: "#16A34A" },
-    { href: `${base}/attendance`, label: "উপস্থিতি", icon: <FactCheckIcon />, color: "#0284C7" },
-    { href: `${base}/reports`, label: "রিপোর্ট", icon: <AssessmentIcon />, color: "#7C3AED" },
-    { href: `${base}/students`, label: "শিক্ষার্থী", icon: <PersonAddAlt1Icon />, color: "#E4890B" },
+    { href: `${base}/payments`, label: t("nav_payments"), icon: <PaidIcon />, color: "#16A34A" },
+    { href: `${base}/attendance`, label: t("nav_attendance"), icon: <FactCheckIcon />, color: "#0284C7" },
+    { href: `${base}/reports`, label: t("nav_reports"), icon: <AssessmentIcon />, color: "#7C3AED" },
+    { href: `${base}/students`, label: t("nav_students"), icon: <PersonAddAlt1Icon />, color: "#E4890B" },
   ];
 
   return (

@@ -7,35 +7,37 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import StatCard from "@/components/ui/StatCard";
 import { getSuperAdminStats, listTenants } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
+import { getT } from "@/lib/i18n/server";
 import TenantsClient from "@/components/superadmin/TenantsClient";
 
 export default async function SuperAdminDashboard() {
+  const t = await getT();
   const [stats, tenants] = await Promise.all([getSuperAdminStats(), listTenants()]);
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h5">ড্যাশবোর্ড</Typography>
+      <Typography variant="h5">{t("sa_nav_dashboard")}</Typography>
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} flexWrap="wrap" useFlexGap>
         <StatCard
-          label="মোট সক্রিয় শিক্ষার্থী"
+          label={t("sa_total_active")}
           value={toBnDigits(stats.totalActiveStudents)}
           icon={<GroupsIcon />}
         />
         <StatCard
-          label="মোট সেন্টার"
+          label={t("sa_total_centers")}
           value={toBnDigits(stats.totalTenants)}
           icon={<StorefrontIcon />}
           color="secondary.main"
         />
         <StatCard
-          label="সক্রিয় সেন্টার"
+          label={t("sa_active_centers")}
           value={toBnDigits(stats.activeTenants)}
           icon={<CheckCircleIcon />}
           color="success.main"
         />
         <StatCard
-          label="মোট অ্যাডমিন"
+          label={t("sa_total_admins")}
           value={toBnDigits(stats.totalAdmins)}
           icon={<PersonIcon />}
           color="#475569"

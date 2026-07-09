@@ -22,6 +22,7 @@ import DataCard from "@/components/ui/DataCard";
 import BlockIcon from "@mui/icons-material/Block";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useToast } from "@/components/providers/ToastProvider";
+import { useI18n } from "@/components/providers/I18nProvider";
 import { createTenant, setTenantActive, updateTenant } from "@/app/superadmin/actions";
 import type { TenantRow } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
@@ -35,16 +36,17 @@ export default function TenantsClient({
   rootDomain: string;
 }) {
   const toast = useToast();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TenantRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const columns = useMemo<GridColDef<TenantRow>[]>(
     () => [
-      { field: "name", headerName: "সেন্টার", flex: 1, minWidth: 150 },
+      { field: "name", headerName: t("sa_center"), flex: 1, minWidth: 150 },
       {
         field: "slug",
-        headerName: "সাইট",
+        headerName: t("sa_site"),
         flex: 1,
         minWidth: 220,
         renderCell: (p) => (
@@ -57,34 +59,34 @@ export default function TenantsClient({
           </Link>
         ),
       },
-      { field: "adminName", headerName: "অ্যাডমিন", flex: 1, minWidth: 120 },
-      { field: "adminPhone", headerName: "ফোন", width: 130 },
+      { field: "adminName", headerName: t("sa_admin"), flex: 1, minWidth: 120 },
+      { field: "adminPhone", headerName: t("st_phone"), width: 130 },
       {
         field: "studentCount",
-        headerName: "শিক্ষার্থী",
+        headerName: t("nav_students"),
         width: 90,
         valueFormatter: (v: number) => toBnDigits(v ?? 0),
       },
       {
         field: "active",
-        headerName: "অবস্থা",
+        headerName: t("c_status"),
         width: 110,
         renderCell: (p) =>
           p.row.active ? (
-            <Chip label="সক্রিয়" color="success" size="small" />
+            <Chip label={t("sa_active")} color="success" size="small" />
           ) : (
-            <Chip label="নিষ্ক্রিয়" color="default" size="small" />
+            <Chip label={t("sa_inactive")} color="default" size="small" />
           ),
       },
       {
         field: "actions",
-        headerName: "অ্যাকশন",
+        headerName: t("c_action"),
         width: 130,
         sortable: false,
         filterable: false,
         renderCell: (p) => (
           <>
-            <Tooltip title="সম্পাদনা">
+            <Tooltip title={t("edit")}>
               <IconButton size="small" onClick={() => setEditing(p.row)}>
                 <EditIcon fontSize="small" />
               </IconButton>
@@ -96,13 +98,13 @@ export default function TenantsClient({
               disabled={pending}
               onClick={() => toggle(p.row)}
             >
-              {p.row.active ? "নিষ্ক্রিয়" : "সক্রিয়"}
+              {p.row.active ? t("sa_inactive") : t("sa_active")}
             </Button>
           </>
         ),
       },
     ],
-    [pending, rootDomain]
+    [pending, rootDomain, t]
   );
 
   function toggle(row: TenantRow) {
@@ -121,17 +123,17 @@ export default function TenantsClient({
         alignItems="center"
         sx={{ mb: 1.5 }}
       >
-        <Typography variant="h6">সেন্টার সমূহ</Typography>
+        <Typography variant="h6">{t("sa_centers")}</Typography>
         <Button startIcon={<AddIcon />} onClick={() => setOpen(true)}>
-          নতুন সেন্টার
+          {t("sa_new_center")}
         </Button>
       </Stack>
 
       {tenants.length === 0 ? (
         <EmptyState
-          title="কোনো সেন্টার নেই"
-          description="নতুন সেন্টার ও তার অ্যাডমিন তৈরি করুন।"
-          actionLabel="নতুন সেন্টার যোগ করুন"
+          title={t("sa_no_centers")}
+          description={t("sa_no_centers_desc")}
+          actionLabel={t("sa_new_center")}
           onAction={() => setOpen(true)}
         />
       ) : (
@@ -141,44 +143,44 @@ export default function TenantsClient({
           pageSize={10}
           pageSizeOptions={[10, 25, 50]}
           gridMinWidth={780}
-          filterText={(t) => `${t.name} ${t.slug} ${t.adminName} ${t.adminPhone}`}
-          renderCard={(t) => (
+          filterText={(row) => `${row.name} ${row.slug} ${row.adminName} ${row.adminPhone}`}
+          renderCard={(row) => (
             <DataCard
-              title={t.name}
+              title={row.name}
               subtitle={
-                <Link href={tenantSiteUrl(t.slug, rootDomain)} target="_blank" rel="noopener">
-                  {tenantSiteLabel(t.slug, rootDomain)}
+                <Link href={tenantSiteUrl(row.slug, rootDomain)} target="_blank" rel="noopener">
+                  {tenantSiteLabel(row.slug, rootDomain)}
                 </Link>
               }
               right={
-                t.active ? (
-                  <Chip label="সক্রিয়" color="success" size="small" />
+                row.active ? (
+                  <Chip label={t("sa_active")} color="success" size="small" />
                 ) : (
-                  <Chip label="নিষ্ক্রিয়" size="small" />
+                  <Chip label={t("sa_inactive")} size="small" />
                 )
               }
               fields={[
-                { label: "অ্যাডমিন", value: t.adminName },
-                { label: "ফোন", value: t.adminPhone },
-                { label: "শিক্ষার্থী", value: toBnDigits(t.studentCount ?? 0) },
+                { label: t("sa_admin"), value: row.adminName },
+                { label: t("st_phone"), value: row.adminPhone },
+                { label: t("nav_students"), value: toBnDigits(row.studentCount ?? 0) },
               ]}
               actions={[
                 {
-                  label: "সম্পাদনা",
+                  label: t("edit"),
                   icon: <EditIcon fontSize="small" />,
-                  onClick: () => setEditing(t),
+                  onClick: () => setEditing(row),
                 },
-                t.active
+                row.active
                   ? {
-                      label: "নিষ্ক্রিয় করুন",
+                      label: t("sa_inactive"),
                       icon: <BlockIcon fontSize="small" />,
                       danger: true,
-                      onClick: () => toggle(t),
+                      onClick: () => toggle(row),
                     }
                   : {
-                      label: "সক্রিয় করুন",
+                      label: t("sa_active"),
                       icon: <CheckCircleIcon fontSize="small" />,
-                      onClick: () => toggle(t),
+                      onClick: () => toggle(row),
                     },
               ]}
             />

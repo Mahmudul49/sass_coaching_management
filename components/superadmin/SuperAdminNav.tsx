@@ -4,20 +4,22 @@ import { usePathname } from "next/navigation";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Box from "@mui/material/Box";
-
-const LINKS = [
-  { href: "/superadmin", label: "ড্যাশবোর্ড" },
-  { href: "/superadmin/students", label: "মার্কেটিং — শিক্ষার্থী" },
-];
+import { useI18n } from "@/components/providers/I18nProvider";
 
 export default function SuperAdminNav() {
   const pathname = usePathname();
+  const { t } = useI18n();
   const value = pathname.startsWith("/superadmin/students") ? 1 : 0;
+
+  const links = [
+    { href: "/superadmin", label: t("sa_nav_dashboard") },
+    { href: "/superadmin/students", label: t("sa_nav_marketing") },
+  ];
 
   return (
     <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
       <Tabs value={value}>
-        {LINKS.map((link, i) => (
+        {links.map((link, i) => (
           <Tab
             key={link.href}
             label={link.label}

@@ -16,19 +16,21 @@ import CloseIcon from "@mui/icons-material/Close";
 import { toBnDigits } from "@/lib/format";
 import type { SetupStatus } from "@/lib/admin/queries";
 import { tenantAdminBaseFromPath } from "@/components/layout/tenantAdminBase";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 const STORAGE_KEY = "setup-checklist-dismissed";
 
 export default function SetupChecklist({ status }: { status: SetupStatus }) {
   const pathname = usePathname();
   const adminBase = tenantAdminBaseFromPath(pathname);
+  const { t } = useI18n();
   const [dismissed, setDismissed] = useState(false);
 
   const steps = [
-    { label: "ক্লাস যোগ করুন", done: status.hasClasses },
-    { label: "শাখা যোগ করুন", done: status.hasSections },
-    { label: "ফি স্ট্রাকচার সেট করুন", done: status.hasFees },
-    { label: "শিক্ষার্থী যোগ করুন", done: status.hasStudents },
+    { label: t("setup_step_class"), done: status.hasClasses },
+    { label: t("setup_step_section"), done: status.hasSections },
+    { label: t("setup_step_fee"), done: status.hasFees },
+    { label: t("setup_step_student"), done: status.hasStudents },
   ];
   const doneCount = steps.filter((s) => s.done).length;
   const pct = (doneCount / steps.length) * 100;
@@ -47,7 +49,7 @@ export default function SetupChecklist({ status }: { status: SetupStatus }) {
     <Card sx={{ borderLeft: "5px solid", borderColor: "primary.main" }}>
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h6">প্রাথমিক সেটআপ</Typography>
+          <Typography variant="h6">{t("setup_title")}</Typography>
           {status.complete && (
             <IconButton size="small" onClick={dismiss} aria-label="বন্ধ করুন">
               <CloseIcon fontSize="small" />
@@ -55,7 +57,7 @@ export default function SetupChecklist({ status }: { status: SetupStatus }) {
           )}
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          {toBnDigits(doneCount)}/{toBnDigits(steps.length)} ধাপ সম্পন্ন
+          {toBnDigits(doneCount)}/{toBnDigits(steps.length)} {t("setup_steps_done")}
         </Typography>
         <LinearProgress variant="determinate" value={pct} sx={{ height: 8, borderRadius: 4, mb: 2 }} />
 
@@ -80,7 +82,7 @@ export default function SetupChecklist({ status }: { status: SetupStatus }) {
         {!status.complete && (
           <Box sx={{ mt: 2 }}>
             <Button component={NextLink} href={`${adminBase}/setup`}>
-              সেটআপ চালিয়ে যান
+              {t("setup_continue")}
             </Button>
           </Box>
         )}

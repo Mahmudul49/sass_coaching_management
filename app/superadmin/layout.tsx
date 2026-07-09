@@ -9,9 +9,11 @@ import { requireSuperAdmin } from "@/lib/auth/guards";
 import LogoutButton from "@/components/layout/LogoutButton";
 import LanguageToggle from "@/components/layout/LanguageToggle";
 import SuperAdminNav from "@/components/superadmin/SuperAdminNav";
+import { getT } from "@/lib/i18n/server";
 
 export default async function SuperAdminLayout({ children }: { children: ReactNode }) {
   await requireSuperAdmin(); // redirects to /login or 403s
+  const t = await getT();
 
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "background.default" }}>
@@ -19,7 +21,7 @@ export default async function SuperAdminLayout({ children }: { children: ReactNo
         <Toolbar>
           <AdminPanelSettingsIcon sx={{ mr: 1 }} />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            সুপার অ্যাডমিন
+            {t("superadmin")}
           </Typography>
           <LanguageToggle />
           <LogoutButton />
