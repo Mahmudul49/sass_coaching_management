@@ -15,6 +15,7 @@ export const Collections = {
   classes: "classes",
   sections: "sections",
   feeStructure: "feeStructure",
+  feeOverride: "feeOverride",
   students: "students",
   attendance: "attendance",
   payments: "payments",
@@ -89,6 +90,22 @@ export type StudentDoc = {
   phone: string;
   active: boolean;
   createdAt: Date;
+};
+
+/**
+ * Per-student, per-month payable override. When present it REPLACES the class
+ * fee structure for that student-month (used by all fee calculations & reports).
+ * `payable = 0` means the student is Not Enrolled that month (excluded from
+ * payable/due/collection). Absence = fall back to the class fee structure.
+ */
+export type FeeOverrideDoc = {
+  _id: ObjectId;
+  tenantId: string;
+  studentId: string;
+  year: number;
+  month: number; // 1-12
+  payable: number; // >=0; 0 = Not Enrolled
+  updatedAt: Date;
 };
 
 export type AttendanceStatus = "present" | "absent";

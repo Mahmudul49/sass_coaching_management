@@ -61,7 +61,7 @@ export async function createTenant(input: {
       passwordHash,
       role: "admin",
     });
-  } catch (err) {
+  } catch {
     // Roll back the tenant if the admin (unique tenantId+phone) couldn't be made.
     await db.collection(Collections.tenants).deleteOne({ _id: tenantRes.insertedId });
     return { ok: false, error: "অ্যাডমিন তৈরি করা যায়নি — ফোন নম্বরটি পুনরায় চেক করুন।" };

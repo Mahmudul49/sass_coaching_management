@@ -10,7 +10,6 @@ import Button from "@mui/material/Button";
 import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Alert from "@mui/material/Alert";
-import Divider from "@mui/material/Divider";
 import { useToast } from "@/components/providers/ToastProvider";
 import {
   setAttendanceSms,

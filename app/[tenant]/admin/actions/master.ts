@@ -2,10 +2,7 @@
 import { requireAdminFromRequest } from "@/lib/auth/guards";
 import { Collections } from "@/lib/db/collections";
 import { toObjectId } from "@/lib/db/oid";
-import {
-  revalidateTenantAdminLayout,
-  revalidateTenantAdminPage,
-} from "@/lib/tenant/revalidate";
+import { revalidateTenantAdminLayout } from "@/lib/tenant/revalidate";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -21,6 +18,47 @@ export async function createClass(name: string, order?: number): Promise<ActionR
   const dup = await db.collection(Collections.classes).findOne({ name: n });
   if (dup) return fail("এই নামে ক্লাস আগে থেকেই আছে।");
   await db.collection(Collections.classes).insertOne({ name: n, order: order ?? 0 } as never);
+  await revalidateTenantAdminLayout();
+  return ok;
+}
+
+/* ───────────────────────── Per-student fee override ───────────────────────── */
+
+/**
+ * Set (or clear) a student's payable for a specific month. This overrides the
+ * class fee structure for that student-month in ALL calculations and reports:
+ *   - a positive amount → that month's payable;
+ *   - 0 → the student is Not Enrolled that month (excluded from payable/due/collection);
+ *   - null → remove the override and fall back to the class fee structure.
+ * Reports recompute automatically (nothing derived is stored).
+ */
+export async function setStudentFeeOverride(
+  studentId: string,
+  year: number,
+  month: number,
+  payable: number | null
+): Promise<ActionResult> {
+  const { db } = await requireAdminFromRequest();
+  const sid = toObjectId(studentId);
+  if (!sid) return fail("ভুল আইডি।");
+  const y = Math.round(Number(year));
+  const m = Math.round(Number(month));
+  if (!Number.isFinite(y) || y < 2000 || y > 3000) return fail("ভুল বছর।");
+  if (!(m >= 1 && m <= 12)) return fail("ভুল মাস।");
+
+  const student = await db.collection(Collections.students).findOne({ _id: sid } as never);
+  if (!student) return fail("শিক্ষার্থী পাওয়া যায়নি।");
+
+  if (payable === null) {
+    await db.collection(Collections.feeOverride).deleteOne({ studentId, year: y, month: m } as never);
+  } else {
+    const amt = Math.max(0, Number(payable) || 0);
+    await db.collection(Collections.feeOverride).updateOne(
+      { studentId, year: y, month: m },
+      { $set: { payable: amt, updatedAt: new Date() }, $setOnInsert: { studentId, year: y, month: m } },
+      { upsert: true }
+    );
+  }
   await revalidateTenantAdminLayout();
   return ok;
 }

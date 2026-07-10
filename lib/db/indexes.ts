@@ -61,6 +61,12 @@ export async function ensureIndexes(db: Db): Promise<void> {
         { unique: true }
       ),
 
+    // feeOverride: one payable override per student per month/year — upsert target.
+    db
+      .collection(Collections.feeOverride)
+      .createIndex({ tenantId: 1, studentId: 1, year: 1, month: 1 }, { unique: true }),
+    db.collection(Collections.feeOverride).createIndex({ tenantId: 1, studentId: 1 }),
+
     // smsLog
     db.collection(Collections.smsLog).createIndex({ tenantId: 1, sentAt: -1 }),
   ]);

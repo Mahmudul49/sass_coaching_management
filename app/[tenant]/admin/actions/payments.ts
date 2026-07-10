@@ -6,12 +6,35 @@ import {
   type PaymentDoc,
   type PaymentComponent,
   type PaymentStatus,
+  type SmsKind,
 } from "@/lib/db/collections";
 import { toObjectId } from "@/lib/db/oid";
 import { sendSms, sendSmsBatch } from "@/lib/sms";
 import { smsTemplates } from "@/lib/sms/templates";
 import { revalidateTenantAdminLayout } from "@/lib/tenant/revalidate";
+import { buildPaymentRows, listClasses, type PayColumn, type PayRow } from "@/lib/admin/queries";
 import type { AnyBulkWriteOperation } from "mongodb";
+
+export type PaymentRowsResult = { template: PayColumn[]; rows: PayRow[]; className: string };
+
+/**
+ * Fetch the payment grid for a class/month/year WITHOUT a page navigation — the
+ * client swaps class/month/year in place and re-renders the grid from this,
+ * instead of router.push'ing the URL (no reload).
+ */
+export async function loadPaymentRows(
+  classId: string,
+  year: number,
+  month: number
+): Promise<PaymentRowsResult> {
+  const { db } = await requireAdminFromRequest();
+  const [built, classes] = await Promise.all([
+    buildPaymentRows(db, classId, year, month),
+    listClasses(db),
+  ]);
+  const className = classes.find((c) => c.id === classId)?.name ?? "";
+  return { template: built.template, rows: built.rows, className };
+}
 
 export type SavePaymentInput = {
   studentId: string;
@@ -44,7 +67,11 @@ function normalizePayment(input: SavePaymentInput) {
     }))
     .filter((c) => c.amount > 0 || c.type === "monthly");
   const totalAmount = components.reduce((sum, c) => sum + c.amount, 0);
-  const paidAmount = Math.max(0, Math.min(Number(input.paidAmount) || 0, totalAmount));
+  // Paid is NOT capped at this month's total: an admin may collect more than is
+  // due this month (an advance). The surplus is carried to other months by the
+  // chronological allocation engine (lib/fees/allocate.ts) at read time — the due
+  // report / matrix spread the student's whole paid pool across their payables.
+  const paidAmount = Math.max(0, Number(input.paidAmount) || 0);
   return { components, totalAmount, paidAmount, status: computeStatus(totalAmount, paidAmount) };
 }
 
@@ -130,11 +157,16 @@ export type BulkSaveResult = {
  * fetch, one `bulkWrite` upsert, one revalidation. Scales from a handful of rows
  * to a full 100+ student class without fanning out requests.
  *
- * SMS: a bulk save only notifies students who actually paid something
- * (paidAmount > 0) — texting a "payment received" to every unpaid student would
- * be spam and, on a real gateway, costly. Single-row Save is unchanged.
+ * SMS: opt-in only. When `options.sendSms` is true, every student with a phone
+ * is notified based on payment status — a "payment received" text to whoever paid
+ * (paidAmount > 0) and a "please pay your due" reminder to whoever still owes.
+ * When it is false/omitted, NO SMS is sent (the default), so a routine bulk save
+ * never fans out texts or incurs gateway cost. Single-row Save is unchanged.
  */
-export async function savePaymentsBulk(inputs: SavePaymentInput[]): Promise<BulkSaveResult> {
+export async function savePaymentsBulk(
+  inputs: SavePaymentInput[],
+  options: { sendSms?: boolean } = {}
+): Promise<BulkSaveResult> {
   const { db, tenant } = await requireAdminFromRequest();
   if (!inputs?.length) return { ok: true, saved: 0, skipped: 0, notified: 0, failed: 0 };
 
@@ -151,7 +183,7 @@ export async function savePaymentsBulk(inputs: SavePaymentInput[]): Promise<Bulk
 
   const now = new Date();
   const ops: AnyBulkWriteOperation<PaymentDoc>[] = [];
-  const smsMessages: Array<{ to: string; body: string; studentId: string; kind: "payment_received" }> = [];
+  const smsMessages: Array<{ to: string; body: string; studentId: string; kind: SmsKind }> = [];
   let skipped = 0;
 
   for (const input of inputs) {
@@ -168,20 +200,38 @@ export async function savePaymentsBulk(inputs: SavePaymentInput[]): Promise<Bulk
         upsert: true,
       },
     });
-    if (n.paidAmount > 0 && student.phone) {
-      smsMessages.push({
-        to: student.phone,
-        studentId: input.studentId,
-        kind: "payment_received",
-        body: smsTemplates.paymentReceived({
-          centerName: tenant.name,
-          studentName: student.name,
-          month: input.month,
-          year: input.year,
-          paid: n.paidAmount,
-          due: n.totalAmount - n.paidAmount,
-        }),
-      });
+    // Status-based SMS (opt-in). Payers get a receipt; anyone still owing gets a
+    // due reminder. Students with nothing payable are left alone.
+    if (options.sendSms && student.phone) {
+      const due = n.totalAmount - n.paidAmount;
+      if (n.paidAmount > 0) {
+        smsMessages.push({
+          to: student.phone,
+          studentId: input.studentId,
+          kind: "payment_received",
+          body: smsTemplates.paymentReceived({
+            centerName: tenant.name,
+            studentName: student.name,
+            month: input.month,
+            year: input.year,
+            paid: n.paidAmount,
+            due,
+          }),
+        });
+      } else if (due > 0) {
+        smsMessages.push({
+          to: student.phone,
+          studentId: input.studentId,
+          kind: "payment_due",
+          body: smsTemplates.paymentDue({
+            centerName: tenant.name,
+            studentName: student.name,
+            month: input.month,
+            year: input.year,
+            due,
+          }),
+        });
+      }
     }
   }
 

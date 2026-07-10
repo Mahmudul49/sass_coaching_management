@@ -7,11 +7,13 @@ import {
   type FeeStructureDoc,
   type StudentDoc,
   type PaymentDoc,
+  type FeeOverrideDoc,
   type AttendanceDoc,
   type AttendanceStatus,
 } from "@/lib/db/collections";
 import { monthName, toBnDigits } from "@/lib/format";
 import { toObjectId } from "@/lib/db/oid";
+import { allocatePayments } from "@/lib/fees/allocate";
 
 /** Plain (serialisable) row shapes handed to client components. */
 export type ClassRow = { id: string; name: string; order: number };
@@ -322,6 +324,8 @@ export async function getAttendanceReport(
 
 export type PayColumn = { key: string; label: string; type: string };
 export type PayStatus = "paid" | "partial" | "unpaid" | "none";
+/** An ad-hoc fee line added for a single student (not part of the class fee structure). */
+export type PayExtra = { label: string; amount: number };
 export type PayRow = {
   id: string; // studentId
   name: string;
@@ -329,6 +333,7 @@ export type PayRow = {
   sectionName: string;
   phone: string;
   amounts: Record<string, number>;
+  extras: PayExtra[]; // per-student custom fees + saved components outside this month's template
   paidAmount: number;
   status: PayStatus;
   remarks: string;
@@ -402,17 +407,24 @@ export async function buildPaymentRows(
     .findArray({ classId, year, month })) as PaymentDoc[];
   const payByStudent = new Map(payments.map((p) => [p.studentId, p]));
 
+  const templateKeys = new Set(template.map((c) => c.key));
+
   const rows: PayRow[] = students.map((s) => {
     const id = s._id.toString();
     const saved = payByStudent.get(id);
     const amounts: Record<string, number> = {};
+    const extras: PayExtra[] = [];
 
     if (saved) {
-      // Map saved components back onto template keys.
+      // Map saved components back onto template keys. Any saved component that is
+      // NOT one of this month's template columns (a per-student custom fee, or an
+      // "other"/admission fee whose month differs from the one being viewed) is
+      // surfaced as an extra so its amount is never silently dropped from the total.
       for (const col of template) amounts[col.key] = 0;
       for (const c of saved.components) {
         const key = c.type === "other" ? otherKey(c.label) : c.type;
-        amounts[key] = c.amount;
+        if (templateKeys.has(key)) amounts[key] = c.amount;
+        else extras.push({ label: c.label, amount: c.amount });
       }
       return {
         id,
@@ -421,6 +433,7 @@ export async function buildPaymentRows(
         sectionName: sectionMap.get(s.sectionId) ?? "—",
         phone: s.phone,
         amounts,
+        extras,
         paidAmount: saved.paidAmount,
         status: saved.status,
         remarks: saved.remarks ?? "",
@@ -439,6 +452,7 @@ export async function buildPaymentRows(
       sectionName: sectionMap.get(s.sectionId) ?? "—",
       phone: s.phone,
       amounts,
+      extras,
       paidAmount: 0,
       status: "none",
       remarks: "",
@@ -463,9 +477,10 @@ export type DueRow = {
   month: number;
   period: string; // e.g. "জুলাই ২০২৬"
   components: { label: string; amount: number }[];
-  total: number;
-  paid: number;
-  due: number;
+  total: number; // PAYABLE this month (fee structure / override)
+  paid: number; // ALLOCATED to this month (chronological allocation)
+  collected: number; // ACTUAL cash received this month (real payment record)
+  due: number; // total - paid
   status: "paid" | "partial" | "unpaid";
 };
 
@@ -598,54 +613,132 @@ async function loadPaymentsForStudents(
 }
 
 /**
- * Pure per-student expansion: for one student, emit a due row per month in the
- * range (real payment overlaid if present; projected unpaid for active students
- * without a record). Same logic for every consumer, so totals/list/export/matrix
- * can never diverge.
+ * Load per-student-month payable overrides in range (bounded to a set of
+ * students). Map value is the override payable (0 = Not Enrolled). Absent keys
+ * fall back to the class fee structure, so tenants with no overrides are
+ * unaffected (full backward compatibility).
  */
-function dueRowsForStudent(s: StudentDoc, ctx: DueContext, payMap: Map<string, PaymentDoc>): DueRow[] {
-  const out: DueRow[] = [];
+async function loadOverridesForStudents(
+  db: ScopedDb,
+  ctx: DueContext,
+  studentIds: string[]
+): Promise<Map<string, number>> {
+  if (studentIds.length === 0) return new Map();
+  const q: Record<string, unknown> = {
+    studentId: { $in: studentIds },
+    $expr: {
+      $and: [
+        { $gte: [{ $add: [{ $multiply: ["$year", 100] }, "$month"] }, ctx.lo] },
+        { $lte: [{ $add: [{ $multiply: ["$year", 100] }, "$month"] }, ctx.hi] },
+      ],
+    },
+  };
+  const docs = (await db
+    .collection<FeeOverrideDoc>(Collections.feeOverride)
+    .findArray(q, { projection: { studentId: 1, year: 1, month: 1, payable: 1 } })) as FeeOverrideDoc[];
+  return new Map(docs.map((o) => [payKey(o.studentId, o.year, o.month), Number(o.payable) || 0]));
+}
+
+/**
+ * Resolve a student's PAYABLE for one month:
+ *   - a per-student override wins outright (0 ⇒ Not Enrolled);
+ *   - otherwise the class fee structure's expected components for that month.
+ * Returns the payable and its component breakdown (for the report/export).
+ */
+function resolvePayable(
+  fee: FeeStructureDoc | undefined,
+  month: number,
+  override: number | undefined
+): { payable: number; components: { label: string; amount: number }[] } {
+  if (override !== undefined) {
+    if (override <= 0) return { payable: 0, components: [] }; // Not Enrolled
+    return { payable: override, components: [{ label: "মাসিক ফি", amount: override }] };
+  }
+  const components = expectedComponents(fee, month);
+  return { payable: components.reduce((s, c) => s + c.amount, 0), components };
+}
+
+/**
+ * Pure per-student expansion (the heart of the smart fee system). For one
+ * student across the range:
+ *   1. Resolve each month's PAYABLE from the fee structure / per-student override
+ *      (0 ⇒ Not Enrolled → the month is dropped from payable/due/collection).
+ *   2. Pool = Σ actual cash received (payment records' paidAmount).
+ *   3. Allocate the pool chronologically across the enrolled months, so an
+ *      overpayment in one month prepays later ones (advance) and a shortfall
+ *      leaves the earliest months due (arrear) until later payments cover them.
+ * Emits one row per enrolled month with PAYABLE (total), ALLOCATED (paid),
+ * COLLECTED (actual) and DUE. Never mutates records → changing a fee/override
+ * recalculates instantly. Same logic for list/summary/export/matrix.
+ */
+function dueRowsForStudent(
+  s: StudentDoc,
+  ctx: DueContext,
+  payMap: Map<string, PaymentDoc>,
+  overrideMap: Map<string, number>
+): DueRow[] {
   const sid = s._id.toString();
   const fee = ctx.feeByClass.get(s.classId);
+
+  // 1. Enrolled months with their resolved payable + actual collected.
+  type Enrolled = {
+    year: number;
+    month: number;
+    payable: number;
+    collected: number;
+    components: { label: string; amount: number }[];
+    recordId?: string;
+  };
+  const enrolled: Enrolled[] = [];
   for (const { year, month } of ctx.months) {
-    const paid = payMap.get(payKey(sid, year, month));
+    const key = payKey(sid, year, month);
+    const rec = payMap.get(key);
+    const override = overrideMap.get(key);
+    const { payable, components } = resolvePayable(fee, month, override);
+    if (payable <= 0) continue; // Not Enrolled this month
+    // Inactive students only appear via a real payment record (no projected dues).
+    if (s.active === false && !rec) continue;
+    enrolled.push({
+      year,
+      month,
+      payable,
+      collected: rec ? rec.paidAmount : 0,
+      components,
+      recordId: rec?._id.toString(),
+    });
+  }
+  if (enrolled.length === 0) return [];
 
-    let total: number;
-    let paidAmount: number;
-    let components: { label: string; amount: number }[];
-    let status: "paid" | "partial" | "unpaid";
+  // 2 + 3. Chronological allocation of the actual-cash pool over payables.
+  const pool = enrolled.reduce((sum, e) => sum + e.collected, 0);
+  const alloc = allocatePayments(
+    enrolled.map((e) => ({ year: e.year, month: e.month, payable: e.payable })),
+    pool
+  );
+  const allocByKey = new Map(alloc.months.map((m) => [payKey(sid, m.year, m.month), m]));
 
-    if (paid) {
-      total = paid.totalAmount;
-      paidAmount = paid.paidAmount;
-      components = (paid.components ?? []).map((c) => ({ label: c.label, amount: c.amount }));
-      status = paid.status;
-    } else {
-      if (s.active === false) continue;
-      components = expectedComponents(fee, month);
-      total = components.reduce((sum, c) => sum + c.amount, 0);
-      if (total <= 0) continue;
-      paidAmount = 0;
-      status = "unpaid";
-    }
-
+  const out: DueRow[] = [];
+  for (const e of enrolled) {
+    const a = allocByKey.get(payKey(sid, e.year, e.month))!;
+    const status: "paid" | "partial" | "unpaid" =
+      a.status === "paid" ? "paid" : a.status === "partial" ? "partial" : "unpaid";
     if (ctx.statusFilter && status !== ctx.statusFilter) continue;
-
     out.push({
-      id: paid ? paid._id.toString() : `${sid}-${year}-${month}`,
+      id: e.recordId ?? `${sid}-${e.year}-${e.month}`,
       studentId: sid,
       name: s.name,
       roll: s.roll,
       phone: s.phone ?? "",
       className: ctx.classMap.get(s.classId) ?? "—",
       sectionName: ctx.sectionMap.get(s.sectionId) ?? "—",
-      year,
-      month,
-      period: `${monthName(month)} ${toBnDigits(year)}`,
-      components,
-      total,
-      paid: paidAmount,
-      due: Math.max(0, total - paidAmount),
+      year: e.year,
+      month: e.month,
+      period: `${monthName(e.month)} ${toBnDigits(e.year)}`,
+      components: e.components,
+      total: e.payable,
+      paid: a.allocated,
+      collected: e.collected,
+      due: a.due,
       status,
     });
   }
@@ -677,13 +770,13 @@ export async function getDueReport(
   const students = (await db
     .collection<StudentDoc>(Collections.students)
     .findArray(studentQuery, { projection: DUE_STUDENT_PROJECTION })) as StudentDoc[];
-  const payMap = await loadPaymentsForStudents(
-    db,
-    ctx,
-    students.map((s) => s._id.toString())
-  );
+  const ids = students.map((s) => s._id.toString());
+  const [payMap, overrideMap] = await Promise.all([
+    loadPaymentsForStudents(db, ctx, ids),
+    loadOverridesForStudents(db, ctx, ids),
+  ]);
   const rows: DueRow[] = [];
-  for (const s of students) rows.push(...dueRowsForStudent(s, ctx, payMap));
+  for (const s of students) rows.push(...dueRowsForStudent(s, ctx, payMap, overrideMap));
   return sortDueRows(rows);
 }
 
@@ -712,13 +805,13 @@ export async function getDueReportPaged(
     .findArray(q, { sort: { _id: 1 }, limit: limit + 1, projection: DUE_STUDENT_PROJECTION })) as StudentDoc[];
   const hasMore = students.length > limit;
   const slice = hasMore ? students.slice(0, limit) : students;
-  const payMap = await loadPaymentsForStudents(
-    db,
-    ctx,
-    slice.map((s) => s._id.toString())
-  );
+  const ids = slice.map((s) => s._id.toString());
+  const [payMap, overrideMap] = await Promise.all([
+    loadPaymentsForStudents(db, ctx, ids),
+    loadOverridesForStudents(db, ctx, ids),
+  ]);
   const rows: DueRow[] = [];
-  for (const s of slice) rows.push(...dueRowsForStudent(s, ctx, payMap));
+  for (const s of slice) rows.push(...dueRowsForStudent(s, ctx, payMap, overrideMap));
   const nextCursor = hasMore ? slice[slice.length - 1]._id.toString() : null;
   return { rows: sortDueRows(rows), nextCursor };
 }
@@ -752,15 +845,15 @@ export async function getDueReportSummary(
       .collection<StudentDoc>(Collections.students)
       .findArray(bq, { sort: { _id: 1 }, limit: BATCH, projection: DUE_STUDENT_PROJECTION })) as StudentDoc[];
     if (batch.length === 0) break;
-    const payMap = await loadPaymentsForStudents(
-      db,
-      ctx,
-      batch.map((s) => s._id.toString())
-    );
+    const ids = batch.map((s) => s._id.toString());
+    const [payMap, overrideMap] = await Promise.all([
+      loadPaymentsForStudents(db, ctx, ids),
+      loadOverridesForStudents(db, ctx, ids),
+    ]);
     for (const s of batch) {
-      for (const r of dueRowsForStudent(s, ctx, payMap)) {
+      for (const r of dueRowsForStudent(s, ctx, payMap, overrideMap)) {
         totalDue += r.due;
-        totalPaid += r.paid;
+        totalPaid += r.collected; // "Total Collected" = actual cash received
         count += 1;
       }
     }
@@ -799,13 +892,13 @@ export async function getDueReportAll(
       .collection<StudentDoc>(Collections.students)
       .findArray(bq, { sort: { _id: 1 }, limit: BATCH, projection: DUE_STUDENT_PROJECTION })) as StudentDoc[];
     if (batch.length === 0) break;
-    const payMap = await loadPaymentsForStudents(
-      db,
-      ctx,
-      batch.map((s) => s._id.toString())
-    );
+    const ids = batch.map((s) => s._id.toString());
+    const [payMap, overrideMap] = await Promise.all([
+      loadPaymentsForStudents(db, ctx, ids),
+      loadOverridesForStudents(db, ctx, ids),
+    ]);
     for (const s of batch) {
-      rows.push(...dueRowsForStudent(s, ctx, payMap));
+      rows.push(...dueRowsForStudent(s, ctx, payMap, overrideMap));
       if (rows.length >= cap) {
         capped = true;
         break;

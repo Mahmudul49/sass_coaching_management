@@ -1,7 +1,6 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import Card from "@mui/material/Card";
-import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";

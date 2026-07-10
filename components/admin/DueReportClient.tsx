@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
@@ -10,6 +10,7 @@ import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
+import LinearProgress from "@mui/material/LinearProgress";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -23,7 +24,7 @@ import { useI18n } from "@/components/providers/I18nProvider";
 import { useToast } from "@/components/providers/ToastProvider";
 import type { MessageKey } from "@/lib/i18n/dictionaries";
 import type { ClassRow, DueRow, DuePage, DueSummary } from "@/lib/admin/queries";
-import { loadDueReportPage, loadDueReportAll } from "@/app/[tenant]/admin/actions/reports";
+import { loadDueReport, loadDueReportPage, loadDueReportAll } from "@/app/[tenant]/admin/actions/reports";
 import { taka, toBnDigits } from "@/lib/format";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -41,12 +42,12 @@ function statusChip(status: DueRow["status"], t: (k: MessageKey) => string) {
 
 export default function DueReportClient({
   classes,
-  classId,
-  from,
-  to,
-  status,
+  classId: classIdProp,
+  from: fromProp,
+  to: toProp,
+  status: statusProp,
   initial,
-  summary,
+  summary: summaryProp,
   centerName,
 }: {
   classes: ClassRow[];
@@ -58,20 +59,29 @@ export default function DueReportClient({
   summary: DueSummary;
   centerName: string;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const { t } = useI18n();
   const toast = useToast();
   const [view, setView] = useState<"list" | "matrix">("list");
+
+  // Filters are LOCAL state now: changing one fetches the new report in place via
+  // a server action (no router.push / no page reload). The URL is kept in sync
+  // with history.replaceState so refresh/bookmark still work.
+  const [classId, setClassId] = useState(classIdProp);
+  const [from, setFrom] = useState(fromProp);
+  const [to, setTo] = useState(toProp);
+  const [status, setStatus] = useState(statusProp);
+  const [loadingData, startLoad] = useTransition();
 
   const filter = useMemo(
     () => ({ classId: classId || undefined, from, to, status }),
     [classId, from, to, status]
   );
 
-  // Paginated list state (first page rendered server-side).
+  // Paginated list state (first page rendered server-side) + summary totals.
   const [items, setItems] = useState<DueRow[]>(initial.rows);
   const [cursor, setCursor] = useState<string | null>(initial.nextCursor);
+  const [summary, setSummary] = useState<DueSummary>(summaryProp);
   const [loadingMore, startMore] = useTransition();
 
   // Full set for matrix — fetched lazily, reset when the filter changes.
@@ -79,21 +89,46 @@ export default function DueReportClient({
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // A new server render (filter change) resets everything derived from it.
+  // A fresh server render (e.g. switching back to this tab, or a hard load with
+  // URL params) resets all local state back to the server-provided values.
   useEffect(() => {
+    setClassId(classIdProp);
+    setFrom(fromProp);
+    setTo(toProp);
+    setStatus(statusProp);
     setItems(initial.rows);
     setCursor(initial.nextCursor);
+    setSummary(summaryProp);
     setMatrixRows(null);
     setView("list");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
 
-  function navigate(next: { classId?: string; from?: string; to?: string; status?: string }) {
-    const params = new URLSearchParams();
-    params.set("classId", next.classId ?? classId);
-    params.set("from", next.from ?? from);
-    params.set("to", next.to ?? to);
-    params.set("status", next.status ?? status);
-    router.push(`${pathname}?${params.toString()}`);
+  // Apply a filter change in place: fetch the first page + summary via a server
+  // action and update state — NO navigation, NO reload.
+  function applyFilter(next: { classId?: string; from?: string; to?: string; status?: string }) {
+    const cId = next.classId ?? classId;
+    const f = next.from ?? from;
+    const to_ = next.to ?? to;
+    const st = next.status ?? status;
+    setClassId(cId);
+    setFrom(f);
+    setTo(to_);
+    setStatus(st);
+    startLoad(async () => {
+      try {
+        const res = await loadDueReport({ classId: cId || undefined, from: f, to: to_, status: st });
+        setItems(res.page.rows);
+        setCursor(res.page.nextCursor);
+        setSummary(res.summary);
+        setMatrixRows(null);
+        setView("list");
+        const params = new URLSearchParams({ tab: "payment", classId: cId, from: f, to: to_, status: st });
+        window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+      } catch {
+        toast.error(t("c_something_wrong"));
+      }
+    });
   }
 
   function loadMore() {
@@ -236,7 +271,8 @@ export default function DueReportClient({
               type="date"
               label={t("r_from")}
               value={from}
-              onChange={(e) => navigate({ from: e.target.value })}
+              disabled={loadingData}
+              onChange={(e) => applyFilter({ from: e.target.value })}
               InputLabelProps={{ shrink: true }}
               sx={{ minWidth: 150 }}
             />
@@ -244,7 +280,8 @@ export default function DueReportClient({
               type="date"
               label={t("r_to")}
               value={to}
-              onChange={(e) => navigate({ to: e.target.value })}
+              disabled={loadingData}
+              onChange={(e) => applyFilter({ to: e.target.value })}
               InputLabelProps={{ shrink: true }}
               sx={{ minWidth: 150 }}
             />
@@ -252,7 +289,8 @@ export default function DueReportClient({
               select
               label={t("c_class")}
               value={classId}
-              onChange={(e) => navigate({ classId: e.target.value })}
+              disabled={loadingData}
+              onChange={(e) => applyFilter({ classId: e.target.value })}
               sx={{ minWidth: 140 }}
             >
               <MenuItem value="">{t("r_all_classes")}</MenuItem>
@@ -266,7 +304,8 @@ export default function DueReportClient({
               select
               label={t("c_status")}
               value={status}
-              onChange={(e) => navigate({ status: e.target.value })}
+              disabled={loadingData}
+              onChange={(e) => applyFilter({ status: e.target.value })}
               sx={{ minWidth: 120 }}
             >
               <MenuItem value="">{t("r_all")}</MenuItem>
@@ -275,6 +314,7 @@ export default function DueReportClient({
               <MenuItem value="unpaid">{t("r_unpaid")}</MenuItem>
             </TextField>
           </Stack>
+          {loadingData && <LinearProgress sx={{ mt: 2, borderRadius: 1 }} />}
         </CardContent>
       </Card>
 

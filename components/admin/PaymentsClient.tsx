@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useCallback, useDeferredValue, useMemo, useState, useTransition } from "react";
+import { usePathname } from "next/navigation";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
@@ -27,14 +27,16 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 import SaveIcon from "@mui/icons-material/Save";
 import PrintIcon from "@mui/icons-material/Print";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/providers/ToastProvider";
-import { savePayment, savePaymentsBulk } from "@/app/[tenant]/admin/actions/payments";
+import { savePayment, savePaymentsBulk, loadPaymentRows } from "@/app/[tenant]/admin/actions/payments";
 import { useI18n } from "@/components/providers/I18nProvider";
 import type { MessageKey } from "@/lib/i18n/dictionaries";
 import { printReceipt, shareReceiptWhatsApp, type ReceiptData } from "@/lib/receipt";
-import type { ClassRow, PayColumn, PayRow } from "@/lib/admin/queries";
+import type { ClassRow, PayColumn, PayRow, PayExtra } from "@/lib/admin/queries";
 import { BN_MONTHS, taka, yearOptions, toBnDigits } from "@/lib/format";
 
 type Row = {
@@ -66,6 +68,13 @@ function flatten(rows: PayRow[], template: PayColumn[]): Row[] {
   });
 }
 
+/** Per-student custom fee lines, keyed by studentId (kept out of the grid row). */
+function extrasFromRows(rows: PayRow[]): Record<string, PayExtra[]> {
+  const map: Record<string, PayExtra[]> = {};
+  for (const r of rows) if (r.extras?.length) map[r.id] = r.extras.map((e) => ({ ...e }));
+  return map;
+}
+
 function statusChip(total: number, paid: number, t: (k: MessageKey) => string) {
   if (paid <= 0) return <Chip size="small" label={t("c_due")} color="error" />;
   if (paid >= total) return <Chip size="small" label={t("c_paid")} color="success" />;
@@ -74,11 +83,11 @@ function statusChip(total: number, paid: number, t: (k: MessageKey) => string) {
 
 export default function PaymentsClient({
   classes,
-  className,
-  classId,
-  year,
-  month,
-  template,
+  className: classNameProp,
+  classId: classIdProp,
+  year: yearProp,
+  month: monthProp,
+  template: templateProp,
   rows: initialRows,
   centerName,
 }: {
@@ -91,34 +100,94 @@ export default function PaymentsClient({
   rows: PayRow[];
   centerName: string;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const toast = useToast();
   const { t } = useI18n();
   const [pending, start] = useTransition();
-  const [rows, setRows] = useState<Row[]>(() => flatten(initialRows, template));
+  // Class / month / year are LOCAL state now: changing them fetches the new grid
+  // in place via a server action (no router.push / no page reload).
+  const [classId, setClassId] = useState(classIdProp);
+  const [year, setYear] = useState(yearProp);
+  const [month, setMonth] = useState(monthProp);
+  const [className, setClassName] = useState(classNameProp);
+  const [template, setTemplate] = useState<PayColumn[]>(templateProp);
+  const [loadingData, startLoad] = useTransition();
+  const [rows, setRows] = useState<Row[]>(() => flatten(initialRows, templateProp));
+  // Per-student custom fee lines live outside the grid row so the DataGrid row
+  // shape stays flat/serialisable; keyed by studentId.
+  const [extrasById, setExtrasById] = useState<Record<string, PayExtra[]>>(() =>
+    extrasFromRows(initialRows)
+  );
+  // Opt-in SMS toggle for "Save all" — default OFF so a routine save never texts.
+  const [sendSms, setSendSms] = useState(false);
   const [mobileQ, setMobileQ] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const toggleExpand = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
 
-  // Instant client-side filter (name/roll) shared by the mobile cards AND the
-  // desktop grid — quick lookup in a long class list, no navigation/reload.
-  const filteredRows = mobileQ.trim()
-    ? rows.filter((r) => `${r.name} ${r.roll}`.toLowerCase().includes(mobileQ.trim().toLowerCase()))
-    : rows;
+  const extrasOf = useCallback((id: string) => extrasById[id] ?? [], [extrasById]);
+  const addExtra = (id: string) =>
+    setExtrasById((m) => ({ ...m, [id]: [...(m[id] ?? []), { label: "", amount: 0 }] }));
+  const updateExtra = (id: string, idx: number, patch: Partial<PayExtra>) =>
+    setExtrasById((m) => ({
+      ...m,
+      [id]: (m[id] ?? []).map((e, i) => (i === idx ? { ...e, ...patch } : e)),
+    }));
+  const removeExtra = (id: string, idx: number) =>
+    setExtrasById((m) => ({ ...m, [id]: (m[id] ?? []).filter((_, i) => i !== idx) }));
 
-  function navigate(next: { classId?: string; year?: number; month?: number }) {
-    const params = new URLSearchParams();
-    params.set("classId", next.classId ?? classId);
-    params.set("year", String(next.year ?? year));
-    params.set("month", String(next.month ?? month));
-    router.push(`${pathname}?${params.toString()}`);
+  // Deferred query keeps the input responsive while the (possibly large) grid /
+  // card list re-render is deprioritised — typing never blocks.
+  const deferredQ = useDeferredValue(mobileQ);
+  const isSearching = mobileQ.trim() !== deferredQ.trim();
+
+  // Lowercased search haystack per row, rebuilt only when the row set changes —
+  // never on each keystroke. Searchable by name, roll and phone.
+  const searchIndex = useMemo(
+    () => rows.map((r) => ({ row: r, hay: `${r.name} ${r.roll} ${r.phone}`.toLowerCase() })),
+    [rows]
+  );
+
+  // Instant client-side filter shared by the mobile cards AND the desktop grid —
+  // pure client-side, no navigation/reload.
+  const filteredRows = useMemo(() => {
+    const q = deferredQ.trim().toLowerCase();
+    if (!q) return rows;
+    return searchIndex.filter((x) => x.hay.includes(q)).map((x) => x.row);
+  }, [rows, searchIndex, deferredQ]);
+
+  // Swap class/month/year in place: fetch the new grid via a server action and
+  // update state — NO navigation, NO reload. The URL is kept in sync with
+  // history.replaceState so refresh/bookmark still work.
+  function changeFilter(next: { classId?: string; year?: number; month?: number }) {
+    const cId = next.classId ?? classId;
+    const y = next.year ?? year;
+    const m = next.month ?? month;
+    setClassId(cId);
+    setYear(y);
+    setMonth(m);
+    startLoad(async () => {
+      try {
+        const res = await loadPaymentRows(cId, y, m);
+        setTemplate(res.template);
+        setClassName(res.className);
+        setRows(flatten(res.rows, res.template));
+        setExtrasById(extrasFromRows(res.rows));
+        setExpanded({});
+        setMobileQ("");
+        const params = new URLSearchParams({ classId: cId, year: String(y), month: String(m) });
+        window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+      } catch {
+        toast.error(t("c_something_wrong"));
+      }
+    });
   }
 
   const rowTotal = useCallback(
-    (row: Row) => template.reduce((sum, c) => sum + (Number(row[c.key]) || 0), 0),
-    [template]
+    (row: Row) =>
+      template.reduce((sum, c) => sum + (Number(row[c.key]) || 0), 0) +
+      extrasOf(row.id).reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
+    [template, extrasOf]
   );
 
   // Live progress summary across the class (for the mobile summary card).
@@ -155,7 +224,13 @@ export default function PaymentsClient({
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: Math.max(0, value) } : r)));
 
   function buildComponents(row: Row) {
-    return template.map((c) => ({ type: c.type, label: c.label, amount: Number(row[c.key]) || 0 }));
+    const base = template.map((c) => ({ type: c.type, label: c.label, amount: Number(row[c.key]) || 0 }));
+    // Persist per-student custom fees as "custom" components (amount > 0 only);
+    // buildPaymentRows reloads them back into `extras` on the next search.
+    const custom = extrasOf(row.id)
+      .map((e) => ({ type: "custom", label: e.label.trim() || t("pay_custom_fee"), amount: Number(e.amount) || 0 }))
+      .filter((c) => c.amount > 0);
+    return [...base, ...custom];
   }
 
   function persist(row: Row) {
@@ -175,7 +250,15 @@ export default function PaymentsClient({
       const res = await persist(row);
       if (res.ok) {
         toast.success(`${row.name} — ${t("pay_saved")}`);
-        router.refresh();
+        // Reconcile in place (mark saved) — no page refresh. Paid is kept as
+        // entered (advances above the month total are allowed and carried over).
+        setRows((rs) =>
+          rs.map((r) =>
+            r.id === row.id
+              ? { ...r, paidAmount: Math.max(0, Number(r.paidAmount) || 0), saved: true }
+              : r
+          )
+        );
       } else toast.error(res.error ?? t("c_something_wrong"));
     });
   }
@@ -193,7 +276,8 @@ export default function PaymentsClient({
             components: buildComponents(row),
             paidAmount: Number(row.paidAmount) || 0,
             remarks: String(row.remarks ?? ""),
-          }))
+          })),
+          { sendSms }
         );
       } catch {
         // Network / server error — nothing was reported saved; keep edits to retry.
@@ -201,13 +285,13 @@ export default function PaymentsClient({
         return;
       }
       if (res.ok) {
-        // Reconcile locally (clamp paid to total, mark saved) rather than a full
-        // page re-fetch — the client already holds exactly what was persisted, so
-        // the save feels instant. Cross-page caches were revalidated server-side.
+        // Reconcile locally (mark saved) rather than a full page re-fetch — the
+        // client already holds exactly what was persisted, so the save feels
+        // instant. Paid is kept as entered (advances above the total are allowed).
         setRows((rs) =>
           rs.map((r) => ({
             ...r,
-            paidAmount: Math.max(0, Math.min(Number(r.paidAmount) || 0, rowTotal(r))),
+            paidAmount: Math.max(0, Number(r.paidAmount) || 0),
             saved: true,
           }))
         );
@@ -227,7 +311,12 @@ export default function PaymentsClient({
       sectionName: row.sectionName,
       month,
       year,
-      lines: template.map((c) => ({ label: c.label, amount: Number(row[c.key]) || 0 })),
+      lines: [
+        ...template.map((c) => ({ label: c.label, amount: Number(row[c.key]) || 0 })),
+        ...extrasOf(row.id)
+          .filter((e) => (Number(e.amount) || 0) > 0)
+          .map((e) => ({ label: e.label.trim() || t("pay_custom_fee"), amount: Number(e.amount) || 0 })),
+      ],
       total: rowTotal(row),
       paid: Number(row.paidAmount) || 0,
       remarks: String(row.remarks ?? ""),
@@ -346,24 +435,26 @@ export default function PaymentsClient({
               select
               label={t("c_class")}
               value={classId}
-              onChange={(e) => navigate({ classId: e.target.value })}
+              disabled={loadingData}
+              onChange={(e) => changeFilter({ classId: e.target.value })}
               sx={{ gridColumn: { xs: "1 / -1", sm: "auto" } }}
             >
               {classes.map((c) => (
                 <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
               ))}
             </TextField>
-            <TextField select label={t("c_month")} value={month} onChange={(e) => navigate({ month: Number(e.target.value) })}>
+            <TextField select label={t("c_month")} value={month} disabled={loadingData} onChange={(e) => changeFilter({ month: Number(e.target.value) })}>
               {BN_MONTHS.map((m, i) => (
                 <MenuItem key={i} value={i + 1}>{m}</MenuItem>
               ))}
             </TextField>
-            <TextField select label={t("c_year")} value={year} onChange={(e) => navigate({ year: Number(e.target.value) })}>
+            <TextField select label={t("c_year")} value={year} disabled={loadingData} onChange={(e) => changeFilter({ year: Number(e.target.value) })}>
               {yearOptions().map((y) => (
                 <MenuItem key={y} value={y}>{toBnDigits(y)}</MenuItem>
               ))}
             </TextField>
           </Box>
+          {loadingData && <LinearProgress sx={{ mt: 1.5, borderRadius: 1 }} />}
         </CardContent>
       </Card>
 
@@ -428,13 +519,21 @@ export default function PaymentsClient({
                 ) : null,
               }}
             />
+            {mobileQ.trim() && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, ml: 0.5 }}>
+                {toBnDigits(filteredRows.length)} {t("students_word")}
+              </Typography>
+            )}
 
-            <Stack spacing={1.5}>
-            {filteredRows.map((row) => {
+            <Stack spacing={1.5} sx={{ opacity: isSearching ? 0.6 : 1, transition: "opacity .15s" }}>
+            {filteredRows.length === 0 ? (
+              <Box sx={{ py: 4, textAlign: "center", color: "text.secondary" }}>{t("pay_no_match")}</Box>
+            ) : filteredRows.map((row) => {
               const total = rowTotal(row);
               const paid = Number(row.paidAmount) || 0;
               const isFull = total > 0 && paid >= total;
               const due = Math.max(0, total - paid);
+              const advance = Math.max(0, paid - total); // overpayment carried to other months
               return (
                 <Card
                   key={row.id}
@@ -492,13 +591,21 @@ export default function PaymentsClient({
                       {[
                         { l: t("c_total"), v: taka(total), c: "text.primary", bg: "rgba(18,36,31,0.04)", bd: "divider" },
                         { l: t("c_paid"), v: taka(paid), c: "success.main", bg: "rgba(22,163,74,0.10)", bd: "rgba(22,163,74,0.25)" },
-                        {
-                          l: t("c_due"),
-                          v: taka(due),
-                          c: due > 0 ? "error.main" : "text.secondary",
-                          bg: due > 0 ? "rgba(220,38,38,0.08)" : "rgba(18,36,31,0.04)",
-                          bd: due > 0 ? "rgba(220,38,38,0.22)" : "divider",
-                        },
+                        advance > 0
+                          ? {
+                              l: t("pay_advance"),
+                              v: taka(advance),
+                              c: "info.main",
+                              bg: "rgba(2,132,199,0.10)",
+                              bd: "rgba(2,132,199,0.25)",
+                            }
+                          : {
+                              l: t("c_due"),
+                              v: taka(due),
+                              c: due > 0 ? "error.main" : "text.secondary",
+                              bg: due > 0 ? "rgba(220,38,38,0.08)" : "rgba(18,36,31,0.04)",
+                              bd: due > 0 ? "rgba(220,38,38,0.22)" : "divider",
+                            },
                       ].map((s) => (
                         <Box
                           key={s.l}
@@ -567,7 +674,46 @@ export default function PaymentsClient({
                             />
                           </Stack>
                         ))}
+                        {/* Per-student custom fee lines (name + amount, removable). */}
+                        {extrasOf(row.id).map((ex, idx) => (
+                          <Stack key={idx} direction="row" spacing={1} alignItems="center" sx={{ px: 1.25, py: 0.75 }}>
+                            <TextField
+                              size="small"
+                              placeholder={t("pay_fee_name")}
+                              value={ex.label}
+                              onChange={(e) => updateExtra(row.id, idx, { label: e.target.value })}
+                              sx={{ flex: 1, minWidth: 0 }}
+                            />
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={Number(ex.amount) || 0}
+                              onChange={(e) => updateExtra(row.id, idx, { amount: Math.max(0, Number(e.target.value)) })}
+                              inputProps={{ inputMode: "numeric", min: 0, style: { textAlign: "right" } }}
+                              InputProps={{ startAdornment: <InputAdornment position="start">৳</InputAdornment> }}
+                              sx={{ width: 118, flexShrink: 0 }}
+                            />
+                            <IconButton
+                              size="small"
+                              color="error"
+                              aria-label={t("pay_remove_fee")}
+                              onClick={() => removeExtra(row.id, idx)}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                        ))}
                       </Stack>
+                      <Button
+                        fullWidth
+                        size="small"
+                        variant="text"
+                        startIcon={<AddCircleOutlineIcon />}
+                        onClick={() => addExtra(row.id)}
+                        sx={{ justifyContent: "flex-start", mb: 1.25 }}
+                      >
+                        {t("pay_add_fee")}
+                      </Button>
                     </Collapse>
                     <TextField
                       label={t("pay_amount")}
@@ -620,24 +766,31 @@ export default function PaymentsClient({
 
           {/* Desktop: editable grid (scrolls within the card, never the page) */}
           <Card sx={{ p: { xs: 1, sm: 2 }, display: { xs: "none", md: "block" } }}>
-            <TextField
-              size="small"
-              placeholder={t("pay_search")}
-              value={mobileQ}
-              onChange={(e) => setMobileQ(e.target.value)}
-              sx={{ mb: 1.5, maxWidth: 420 }}
-              InputProps={{
-                startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
-                endAdornment: mobileQ ? (
-                  <InputAdornment position="end">
-                    <IconButton size="small" edge="end" aria-label="clear search" onClick={() => setMobileQ("")}>
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ) : null,
-              }}
-            />
-            <Box sx={{ width: "100%", overflowX: "auto" }}>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+              <TextField
+                size="small"
+                placeholder={t("pay_search")}
+                value={mobileQ}
+                onChange={(e) => setMobileQ(e.target.value)}
+                sx={{ maxWidth: 420, flex: 1 }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                  endAdornment: mobileQ ? (
+                    <InputAdornment position="end">
+                      <IconButton size="small" edge="end" aria-label="clear search" onClick={() => setMobileQ("")}>
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ) : null,
+                }}
+              />
+              {mobileQ.trim() && (
+                <Typography variant="caption" color="text.secondary" noWrap>
+                  {toBnDigits(filteredRows.length)} {t("students_word")}
+                </Typography>
+              )}
+            </Stack>
+            <Box sx={{ width: "100%", overflowX: "auto", opacity: isSearching ? 0.6 : 1, transition: "opacity .15s" }}>
               <Box sx={{ minWidth: 720 }}>
                 <DataGrid
                   autoHeight
@@ -664,25 +817,38 @@ export default function PaymentsClient({
               px: { xs: 1.5, sm: 2 },
               py: 1.25,
               borderRadius: 3,
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
               border: "1px solid",
               borderColor: "divider",
             }}
           >
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", sm: "block" } }}>
-                {toBnDigits(rows.length)} {t("students_word")}
-              </Typography>
-              <Typography variant="body2" fontWeight={700} noWrap sx={{ fontVariantNumeric: "tabular-nums" }}>
-                {toBnDigits(collectedPct)}% · {taka(summary.collected)}
-              </Typography>
+            {/* Opt-in SMS toggle sits above the save action (default: unchecked). */}
+            <FormControlLabel
+              control={<Checkbox size="small" checked={sendSms} onChange={(e) => setSendSms(e.target.checked)} />}
+              label={
+                <Typography variant="body2">
+                  {t("pay_send_sms")}
+                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                    {t("pay_send_sms_hint")}
+                  </Typography>
+                </Typography>
+              }
+              sx={{ mb: 0.5, mr: 0 }}
+            />
+            <Divider sx={{ mb: 1 }} />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", sm: "block" } }}>
+                  {toBnDigits(rows.length)} {t("students_word")}
+                </Typography>
+                <Typography variant="body2" fontWeight={700} noWrap sx={{ fontVariantNumeric: "tabular-nums" }}>
+                  {toBnDigits(collectedPct)}% · {taka(summary.collected)}
+                </Typography>
+              </Box>
+              <Box sx={{ flex: 1 }} />
+              <Button startIcon={<SaveIcon />} onClick={saveAll} disabled={pending} size="large">
+                {pending ? t("pay_saving") : t("pay_save_all")}
+              </Button>
             </Box>
-            <Box sx={{ flex: 1 }} />
-            <Button startIcon={<SaveIcon />} onClick={saveAll} disabled={pending} size="large">
-              {pending ? t("pay_saving") : t("pay_save_all")}
-            </Button>
           </Paper>
         </>
       )}

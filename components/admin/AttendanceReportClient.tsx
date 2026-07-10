@@ -1,6 +1,6 @@
 "use client";
-import { useMemo } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { usePathname } from "next/navigation";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
@@ -9,6 +9,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
+import LinearProgress from "@mui/material/LinearProgress";
 import DownloadIcon from "@mui/icons-material/Download";
 import PrintIcon from "@mui/icons-material/Print";
 import { type GridColDef } from "@mui/x-data-grid";
@@ -17,18 +18,20 @@ import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import DataCard from "@/components/ui/DataCard";
 import { exportAoa } from "@/lib/excel";
 import type { ClassRow, AttendanceReportRow } from "@/lib/admin/queries";
+import { loadAttendanceReport } from "@/app/[tenant]/admin/actions/reports";
 import { toBnDigits } from "@/lib/format";
 import { useI18n } from "@/components/providers/I18nProvider";
+import { useToast } from "@/components/providers/ToastProvider";
 
 export default function AttendanceReportClient({
   classes,
-  classId,
-  from,
-  to,
-  days,
-  rows,
+  classId: classIdProp,
+  from: fromProp,
+  to: toProp,
+  days: daysProp,
+  rows: rowsProp,
   centerName,
-  className,
+  className: classNameProp,
 }: {
   classes: ClassRow[];
   classId: string;
@@ -40,16 +43,51 @@ export default function AttendanceReportClient({
   className: string;
 }) {
   const { t } = useI18n();
-  const router = useRouter();
+  const toast = useToast();
   const pathname = usePathname();
 
-  function navigate(next: { classId?: string; from?: string; to?: string }) {
-    const p = new URLSearchParams();
-    p.set("tab", "attendance");
-    p.set("classId", next.classId ?? classId);
-    p.set("from", next.from ?? from);
-    p.set("to", next.to ?? to);
-    router.push(`${pathname}?${p.toString()}`);
+  // Filters + derived data are LOCAL state now: changing a filter fetches the
+  // new report in place via a server action (no router.push / no reload). The URL
+  // is kept in sync with history.replaceState so refresh/bookmark still work.
+  const [classId, setClassId] = useState(classIdProp);
+  const [from, setFrom] = useState(fromProp);
+  const [to, setTo] = useState(toProp);
+  const [rows, setRows] = useState<AttendanceReportRow[]>(rowsProp);
+  const [days, setDays] = useState(daysProp);
+  const [className, setClassName] = useState(classNameProp);
+  const [loadingData, startLoad] = useTransition();
+
+  // A fresh server render (switching back to this tab, or a hard load with URL
+  // params) resets all local state back to the server-provided values.
+  useEffect(() => {
+    setClassId(classIdProp);
+    setFrom(fromProp);
+    setTo(toProp);
+    setRows(rowsProp);
+    setDays(daysProp);
+    setClassName(classNameProp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowsProp]);
+
+  function applyFilter(next: { classId?: string; from?: string; to?: string }) {
+    const cId = next.classId ?? classId;
+    const f = next.from ?? from;
+    const to_ = next.to ?? to;
+    setClassId(cId);
+    setFrom(f);
+    setTo(to_);
+    startLoad(async () => {
+      try {
+        const res = await loadAttendanceReport(cId, f, to_);
+        setRows(res.rows);
+        setDays(res.days);
+        setClassName(res.className);
+        const p = new URLSearchParams({ tab: "attendance", classId: cId, from: f, to: to_ });
+        window.history.replaceState(null, "", `${pathname}?${p.toString()}`);
+      } catch {
+        toast.error(t("c_something_wrong"));
+      }
+    });
   }
 
   const columns = useMemo<GridColDef<AttendanceReportRow>[]>(
@@ -143,16 +181,17 @@ export default function AttendanceReportClient({
       <Card>
         <CardContent>
           <Stack direction={{ xs: "column", md: "row" }} spacing={2} useFlexGap flexWrap="wrap">
-            <TextField select label={t("c_class")} value={classId} onChange={(e) => navigate({ classId: e.target.value })} sx={{ minWidth: 150 }}>
+            <TextField select label={t("c_class")} value={classId} disabled={loadingData} onChange={(e) => applyFilter({ classId: e.target.value })} sx={{ minWidth: 150 }}>
               {classes.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
                   {c.name}
                 </MenuItem>
               ))}
             </TextField>
-            <TextField type="date" label={t("r_from")} value={from} onChange={(e) => navigate({ from: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }} />
-            <TextField type="date" label={t("r_to")} value={to} onChange={(e) => navigate({ to: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }} />
+            <TextField type="date" label={t("r_from")} value={from} disabled={loadingData} onChange={(e) => applyFilter({ from: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }} />
+            <TextField type="date" label={t("r_to")} value={to} disabled={loadingData} onChange={(e) => applyFilter({ to: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ minWidth: 150 }} />
           </Stack>
+          {loadingData && <LinearProgress sx={{ mt: 2, borderRadius: 1 }} />}
         </CardContent>
       </Card>
 
