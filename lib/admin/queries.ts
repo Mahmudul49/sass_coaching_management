@@ -640,18 +640,31 @@ async function loadOverridesForStudents(
 }
 
 /**
- * Resolve a student's PAYABLE for one month:
- *   - a per-student override wins outright (0 ⇒ Not Enrolled);
- *   - otherwise the class fee structure's expected components for that month.
+ * Resolve a student's PAYABLE for one month. Precedence (the single source of
+ * truth for payable):
+ *   1. a SAVED PAYMENT record → its stored Total (`totalAmount`). This is the
+ *      final payable the admin confirmed on the payment page, whether they kept
+ *      the fee-structure default or customised it. Backward compatible: a record
+ *      saved with the default amounts stores that same total, so existing data is
+ *      unchanged. (Not Enrolled via override 0 is handled by the caller first.)
+ *   2. a per-student override (0 ⇒ Not Enrolled);
+ *   3. otherwise the class fee structure's expected components for that month.
  * Returns the payable and its component breakdown (for the report/export).
  */
 function resolvePayable(
   fee: FeeStructureDoc | undefined,
   month: number,
-  override: number | undefined
+  override: number | undefined,
+  payment: PaymentDoc | undefined
 ): { payable: number; components: { label: string; amount: number }[] } {
+  if (override !== undefined && override <= 0) return { payable: 0, components: [] }; // Not Enrolled
+  if (payment) {
+    return {
+      payable: Math.max(0, Number(payment.totalAmount) || 0),
+      components: (payment.components ?? []).map((c) => ({ label: c.label, amount: c.amount })),
+    };
+  }
   if (override !== undefined) {
-    if (override <= 0) return { payable: 0, components: [] }; // Not Enrolled
     return { payable: override, components: [{ label: "মাসিক ফি", amount: override }] };
   }
   const components = expectedComponents(fee, month);
@@ -694,8 +707,10 @@ function dueRowsForStudent(
     const key = payKey(sid, year, month);
     const rec = payMap.get(key);
     const override = overrideMap.get(key);
-    const { payable, components } = resolvePayable(fee, month, override);
-    if (payable <= 0) continue; // Not Enrolled this month
+    // Payable resolves to the saved payment's Total when a record exists (the
+    // admin's confirmed/customised amount), else the override / fee structure.
+    const { payable, components } = resolvePayable(fee, month, override, rec);
+    if (payable <= 0) continue; // Not Enrolled / nothing payable this month
     // Inactive students only appear via a real payment record (no projected dues).
     if (s.active === false && !rec) continue;
     enrolled.push({
