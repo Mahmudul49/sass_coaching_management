@@ -3,17 +3,20 @@ import Typography from "@mui/material/Typography";
 import { requireAdmin } from "@/lib/auth/guards";
 import { listFees } from "@/lib/admin/queries";
 import FeesManager from "@/components/admin/FeesManager";
-import { getT } from "@/lib/i18n/server";
+import { I18nProvider } from "@/components/providers/I18nProvider";
+import { dict } from "@/lib/i18n/dictionaries";
 
 export default async function FeesPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params;
   const { db } = await requireAdmin(tenant);
-  const t = await getT();
+  // Fee Structure page always renders in English.
   const fees = await listFees(db);
   return (
+    <I18nProvider initialLocale="en">
     <Stack spacing={2}>
-      <Typography variant="h5">{t("nav_fees")}</Typography>
+      <Typography variant="h5">{dict.en.nav_fees}</Typography>
       <FeesManager fees={fees} />
     </Stack>
+    </I18nProvider>
   );
 }

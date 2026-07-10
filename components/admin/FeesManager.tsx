@@ -22,26 +22,28 @@ import { useToast } from "@/components/providers/ToastProvider";
 import { saveFeeStructure } from "@/app/[tenant]/admin/actions/master";
 import { useI18n } from "@/components/providers/I18nProvider";
 import type { FeeRow } from "@/lib/admin/queries";
-import { BN_MONTHS, monthName, taka } from "@/lib/format";
+import { BN_MONTHS, EN_MONTHS, monthName as monthNameFmt, taka as takaFmt } from "@/lib/format";
 
 function MonthField({
   value,
   onChange,
-  label = "মাস",
+  label,
 }: {
   value: number;
   onChange: (m: number) => void;
   label?: string;
 }) {
+  const { t, locale } = useI18n();
+  const months = locale === "en" ? EN_MONTHS : BN_MONTHS;
   return (
     <TextField
       select
-      label={label}
+      label={label ?? t("c_month")}
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
       sx={{ minWidth: 130 }}
     >
-      {BN_MONTHS.map((m, i) => (
+      {months.map((m, i) => (
         <MenuItem key={i} value={i + 1}>
           {m}
         </MenuItem>
@@ -52,7 +54,9 @@ function MonthField({
 
 export default function FeesManager({ fees }: { fees: FeeRow[] }) {
   const toast = useToast();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const taka = (n: number) => takaFmt(n, locale);
+  const monthName = (m: number) => monthNameFmt(m, locale);
   const [editing, setEditing] = useState<FeeRow | null>(null);
   const [pending, start] = useTransition();
 

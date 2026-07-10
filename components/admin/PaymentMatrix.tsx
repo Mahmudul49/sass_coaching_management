@@ -19,7 +19,7 @@ import { exportAoa } from "@/lib/excel";
 import { useI18n } from "@/components/providers/I18nProvider";
 import type { MessageKey } from "@/lib/i18n/dictionaries";
 import type { DueRow } from "@/lib/admin/queries";
-import { monthName, taka, toBnDigits } from "@/lib/format";
+import { monthName as monthNameFmt, taka as takaFmt, toBnDigits as bnFmt } from "@/lib/format";
 
 type MatrixStudent = {
   studentId: string;
@@ -55,7 +55,11 @@ function statusOf(
  * Paid / Due / % / Status and a totals footer. Overpayment shows as advance.
  */
 export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; centerName: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const en = locale === "en";
+  const taka = (n: number) => takaFmt(n, locale);
+  const toBnDigits = (v: string | number) => bnFmt(v, locale);
+  const monthName = (m: number) => monthNameFmt(m, locale);
   const [search, setSearch] = useState("");
 
   const { months, students } = useMemo(() => {
@@ -204,7 +208,7 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
       table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:4px 6px}
       th{background:#f0f0f0}.r{text-align:right}.tot td{font-weight:bold;background:#f7f7f7}
       @media print{button{display:none}}</style></head>
-      <body><h2>${centerName} — পেমেন্ট ম্যাট্রিক্স</h2>
+      <body><h2>${centerName} — ${en ? "Payment Matrix" : "পেমেন্ট ম্যাট্রিক্স"}</h2>
       <table><thead><tr>${head}</tr></thead><tbody>${body}${footer}</tbody></table>
       <div style="text-align:center;margin-top:16px"><button onclick="window.print()">${t("ar_print")}</button></div>
       </body></html>`

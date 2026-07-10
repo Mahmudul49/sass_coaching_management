@@ -10,7 +10,8 @@ import {
 import DueReportClient from "@/components/admin/DueReportClient";
 import AttendanceReportClient from "@/components/admin/AttendanceReportClient";
 import ReportTabs from "@/components/admin/ReportTabs";
-import { getT } from "@/lib/i18n/server";
+import { I18nProvider } from "@/components/providers/I18nProvider";
+import { dict } from "@/lib/i18n/dictionaries";
 import { currentYear, todayISO } from "@/lib/format";
 
 export default async function ReportsPage({
@@ -29,7 +30,7 @@ export default async function ReportsPage({
   const { tenant } = await params;
   const ctx = await requireAdmin(tenant);
   const { db } = ctx;
-  const t = await getT();
+  // Reports page always renders in English.
   const classes = await listClasses(db);
   const sp = await searchParams;
 
@@ -38,8 +39,9 @@ export default async function ReportsPage({
   const to = sp.to || todayISO();
 
   return (
+    <I18nProvider initialLocale="en">
     <Stack spacing={2}>
-      <Typography variant="h5">{t("nav_reports")}</Typography>
+      <Typography variant="h5">{dict.en.nav_reports}</Typography>
       <ReportTabs tab={tab} />
 
       {tab === "attendance" ? (
@@ -48,6 +50,7 @@ export default async function ReportsPage({
         await renderPayment()
       )}
     </Stack>
+    </I18nProvider>
   );
 
   async function renderPayment() {

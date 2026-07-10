@@ -26,13 +26,13 @@ import { useToast } from "@/components/providers/ToastProvider";
 import type { MessageKey } from "@/lib/i18n/dictionaries";
 import type { ClassRow, DueRow, DuePage, DueSummary } from "@/lib/admin/queries";
 import { loadDueReport, loadDueReportPage, loadDueReportAll } from "@/app/[tenant]/admin/actions/reports";
-import { taka, toBnDigits } from "@/lib/format";
+import { taka as takaFmt, toBnDigits as bnFmt, monthName as monthNameFmt } from "@/lib/format";
 
 const TYPE_LABEL: Record<string, string> = {
   "": "All",
-  paid: "পরিশোধিত (Paid)",
-  partial: "আংশিক (Partial)",
-  unpaid: "বাকি (Unpaid)",
+  paid: "Paid",
+  partial: "Partial",
+  unpaid: "Unpaid",
 };
 
 function statusChip(status: DueRow["status"], t: (k: MessageKey) => string) {
@@ -61,7 +61,11 @@ export default function DueReportClient({
   centerName: string;
 }) {
   const pathname = usePathname();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const taka = (n: number) => takaFmt(n, locale);
+  const toBnDigits = (v: string | number) => bnFmt(v, locale);
+  // r.period is prebuilt on the server (Bengali); rebuild it in the active locale.
+  const fmtPeriod = (r: DueRow) => `${monthNameFmt(r.month, locale)} ${bnFmt(r.year, locale)}`;
   const toast = useToast();
   const [view, setView] = useState<"list" | "matrix">("list");
 
@@ -193,7 +197,7 @@ export default function DueReportClient({
 
   const columns = useMemo<GridColDef<DueRow>[]>(
     () => [
-      { field: "period", headerName: t("c_month"), width: 130 },
+      { field: "period", headerName: t("c_month"), width: 130, valueGetter: (_v, row) => fmtPeriod(row) },
       { field: "roll", headerName: t("c_roll"), width: 80 },
       { field: "name", headerName: t("c_name"), flex: 1, minWidth: 140 },
       { field: "className", headerName: t("c_class"), width: 110 },
@@ -283,7 +287,7 @@ export default function DueReportClient({
   const renderCard = (r: DueRow) => (
     <DataCard
       title={r.name}
-      subtitle={`${r.period} · ${r.className} ${r.sectionName} · ${t("c_roll")} ${toBnDigits(r.roll)}`}
+      subtitle={`${fmtPeriod(r)} · ${r.className} ${r.sectionName} · ${t("c_roll")} ${toBnDigits(r.roll)}`}
       right={statusChip(r.status, t)}
       fields={[
         { label: t("c_total"), value: taka(r.total) },
