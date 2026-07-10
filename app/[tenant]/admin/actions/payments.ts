@@ -48,6 +48,7 @@ export type SavePaymentInput = {
 export type SaveResult = { ok: boolean; error?: string; status?: PaymentStatus };
 
 function computeStatus(total: number, paid: number): PaymentStatus {
+  if (total <= 0) return "paid"; // nothing payable = settled (not "unpaid"/Due)
   if (paid <= 0) return "unpaid";
   if (paid >= total) return "paid";
   return "partial";

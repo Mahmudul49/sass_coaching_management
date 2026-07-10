@@ -76,6 +76,12 @@ function extrasFromRows(rows: PayRow[]): Record<string, PayExtra[]> {
 }
 
 function statusChip(total: number, paid: number, t: (k: MessageKey) => string) {
+  // Nothing payable this month (no fee configured / waived): not "Due" — there is
+  // nothing to collect. Show a neutral chip (or Paid if an advance was taken).
+  if (total <= 0) {
+    if (paid > 0) return <Chip size="small" label={t("c_paid")} color="success" />;
+    return <Chip size="small" variant="outlined" label={t("pay_no_fee")} />;
+  }
   if (paid <= 0) return <Chip size="small" label={t("c_due")} color="error" />;
   if (paid >= total) return <Chip size="small" label={t("c_paid")} color="success" />;
   return <Chip size="small" label={t("c_partial")} color="warning" />;
@@ -197,7 +203,8 @@ export default function PaymentsClient({
       const p = Number(r.paidAmount) || 0;
       a.expected += t;
       a.collected += p;
-      if (p <= 0) a.unpaid += 1;
+      if (t <= 0) a.paid += 1; // nothing payable = settled, never counted as due
+      else if (p <= 0) a.unpaid += 1;
       else if (p >= t) a.paid += 1;
       else a.partial += 1;
       return a;
