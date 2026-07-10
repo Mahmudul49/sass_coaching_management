@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -14,6 +14,7 @@ import LinearProgress from "@mui/material/LinearProgress";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import DownloadIcon from "@mui/icons-material/Download";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import ResponsiveTable from "@/components/ui/ResponsiveTable";
@@ -152,6 +153,43 @@ export default function DueReportClient({
       setMatrixLoading(false);
     }
   }
+
+  // Re-pull the CURRENT view live so it reflects payment updates made elsewhere
+  // (payment page / another tab) without a full page reload. List → first page +
+  // summary; Matrix → the full pivot. Skips while a load is already in flight.
+  const refresh = useCallback(() => {
+    if (loadingData || matrixLoading || loadingMore || exporting) return;
+    startLoad(async () => {
+      try {
+        const rep = await loadDueReport(filter);
+        setItems(rep.page.rows);
+        setCursor(rep.page.nextCursor);
+        setSummary(rep.summary);
+        if (view === "matrix") {
+          const all = await loadDueReportAll(filter);
+          setMatrixRows(all.rows);
+          if (all.capped) toast.error(t("r_capped"));
+        } else {
+          setMatrixRows(null); // invalidate cached matrix → refetch on next open
+        }
+      } catch {
+        toast.error(t("c_something_wrong"));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, view, loadingData, matrixLoading, loadingMore, exporting]);
+
+  // Real-time feel: when the admin returns to this browser tab (e.g. after saving
+  // on the payment page in another tab), auto-refresh the active view. Uses only
+  // visibilitychange — NOT window focus — so opening the print/export dialog does
+  // not spuriously reload the report.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refresh]);
 
   const columns = useMemo<GridColDef<DueRow>[]>(
     () => [
@@ -335,6 +373,15 @@ export default function DueReportClient({
         <Chip color="error" sx={{ fontSize: 15, py: 2.2, px: 1, fontWeight: 700 }} label={`${t("r_total_due")}: ${taka(summary.totalDue)}`} />
         <Chip color="success" sx={{ fontSize: 15, py: 2.2, px: 1, fontWeight: 700 }} label={`${t("r_total_collected")}: ${taka(summary.totalPaid)}`} />
         <Box sx={{ flex: 1 }} />
+        <Button
+          variant="outlined"
+          startIcon={loadingData ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
+          onClick={refresh}
+          disabled={loadingData || matrixLoading || loadingMore}
+          sx={{ width: { xs: "100%", sm: "auto" } }}
+        >
+          {t("r_refresh")}
+        </Button>
         {view === "list" && (
           <Button
             startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
