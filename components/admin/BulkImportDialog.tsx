@@ -15,6 +15,7 @@ import Box from "@mui/material/Box";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import DownloadIcon from "@mui/icons-material/Download";
 import { useToast } from "@/components/providers/ToastProvider";
+import { useI18n } from "@/components/providers/I18nProvider";
 import {
   downloadStudentTemplate,
   parseStudentsExcel,
@@ -43,6 +44,11 @@ export default function BulkImportDialog({
   sections: SectionRow[];
 }) {
   const toast = useToast();
+  // Bilingual copy: follows the active language (English under the dashboard's
+  // English provider, Bengali under the setup wizard / global toggle).
+  const { locale } = useI18n();
+  const en = locale === "en";
+  const num = (v: string | number) => toBnDigits(v, locale);
   const [pending, start] = useTransition();
   const [rows, setRows] = useState<PreviewRow[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -58,10 +64,10 @@ export default function BulkImportDialog({
       const className = String(r.Class ?? "").trim();
       const sectionName = String(r.Section ?? "").trim();
 
-      if (!name) errors.push("নাম নেই");
-      if (!roll) errors.push("রোল নেই");
-      if (!phone) errors.push("ফোন নেই");
-      if (!className) errors.push("ক্লাস নেই");
+      if (!name) errors.push(en ? "Name missing" : "নাম নেই");
+      if (!roll) errors.push(en ? "Roll missing" : "রোল নেই");
+      if (!phone) errors.push(en ? "Phone missing" : "ফোন নেই");
+      if (!className) errors.push(en ? "Class missing" : "ক্লাস নেই");
       // Section optional — no error when blank.
 
       // Unmatched class/section are NOT errors — they will be created on import.
@@ -86,13 +92,17 @@ export default function BulkImportDialog({
     try {
       const raw = await parseStudentsExcel(file);
       if (!raw.length) {
-        setFileError("ফাইলে কোনো সারি পাওয়া যায়নি।");
+        setFileError(en ? "No rows found in the file." : "ফাইলে কোনো সারি পাওয়া যায়নি।");
         setRows([]);
         return;
       }
       setRows(validate(raw));
     } catch {
-      setFileError("ফাইলটি পড়া যায়নি — সঠিক .xlsx ফাইল আপলোড করুন।");
+      setFileError(
+        en
+          ? "Couldn't read the file — please upload a valid .xlsx file."
+          : "ফাইলটি পড়া যায়নি — সঠিক .xlsx ফাইল আপলোড করুন।"
+      );
       setRows([]);
     }
   }
@@ -115,15 +125,19 @@ export default function BulkImportDialog({
       const res = await importStudentsFromExcel(payload);
       if (res.ok) {
         const extra: string[] = [];
-        if (res.classesCreated) extra.push(`${toBnDigits(res.classesCreated)} টি নতুন ক্লাস`);
-        if (res.sectionsCreated) extra.push(`${toBnDigits(res.sectionsCreated)} টি নতুন শাখা`);
+        if (res.classesCreated)
+          extra.push(en ? `${res.classesCreated} new class(es)` : `${num(res.classesCreated)} টি নতুন ক্লাস`);
+        if (res.sectionsCreated)
+          extra.push(en ? `${res.sectionsCreated} new section(s)` : `${num(res.sectionsCreated)} টি নতুন শাখা`);
         toast.success(
-          `${toBnDigits(res.inserted)} জন শিক্ষার্থী যোগ হয়েছে।` +
-            (extra.length ? ` (${extra.join(", ")} তৈরি হয়েছে)` : "")
+          en
+            ? `${res.inserted} student(s) added.` + (extra.length ? ` (${extra.join(", ")} created)` : "")
+            : `${num(res.inserted)} জন শিক্ষার্থী যোগ হয়েছে।` +
+                (extra.length ? ` (${extra.join(", ")} তৈরি হয়েছে)` : "")
         );
         handleClose();
       } else {
-        toast.error(res.error ?? "ইম্পোর্ট ব্যর্থ হয়েছে।");
+        toast.error(res.error ?? (en ? "Import failed." : "ইম্পোর্ট ব্যর্থ হয়েছে।"));
       }
     });
   }
@@ -139,31 +153,46 @@ export default function BulkImportDialog({
       open={open}
       onClose={handleClose}
       disableClose={pending}
-      title="Excel দিয়ে শিক্ষার্থী যোগ করুন"
+      title={en ? "Add Students via Excel" : "Excel দিয়ে শিক্ষার্থী যোগ করুন"}
       maxWidth="md"
       actions={
         <>
           <Button variant="text" color="inherit" onClick={handleClose} disabled={pending}>
-            বাতিল
+            {en ? "Cancel" : "বাতিল"}
           </Button>
           <Button onClick={confirmImport} disabled={pending || validRows.length === 0}>
-            {pending ? "ইম্পোর্ট হচ্ছে..." : `${toBnDigits(validRows.length)} জন ইম্পোর্ট করুন`}
+            {pending
+              ? en
+                ? "Importing..."
+                : "ইম্পোর্ট হচ্ছে..."
+              : en
+                ? `Import ${validRows.length}`
+                : `${num(validRows.length)} জন ইম্পোর্ট করুন`}
           </Button>
         </>
       }
     >
         <Stack spacing={2}>
           <Alert severity="info">
-            কলাম: <b>Name, Roll, Phone, Class</b> এবং <b>Section (ঐচ্ছিক)</b>। কোনো
-            ক্লাস বা শাখা আগে থেকে না থাকলে ইম্পোর্টের সময় <b>স্বয়ংক্রিয়ভাবে তৈরি</b> হয়ে যাবে।
+            {en ? (
+              <>
+                Columns: <b>Name, Roll, Phone, Class</b> and <b>Section (optional)</b>. Any class or
+                section that doesn&apos;t already exist is <b>created automatically</b> during import.
+              </>
+            ) : (
+              <>
+                কলাম: <b>Name, Roll, Phone, Class</b> এবং <b>Section (ঐচ্ছিক)</b>। কোনো
+                ক্লাস বা শাখা আগে থেকে না থাকলে ইম্পোর্টের সময় <b>স্বয়ংক্রিয়ভাবে তৈরি</b> হয়ে যাবে।
+              </>
+            )}
           </Alert>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
             <Button startIcon={<DownloadIcon />} variant="outlined" onClick={downloadStudentTemplate}>
-              টেমপ্লেট ডাউনলোড
+              {en ? "Download Template" : "টেমপ্লেট ডাউনলোড"}
             </Button>
             <Button component="label" startIcon={<UploadFileIcon />}>
-              ফাইল নির্বাচন করুন
+              {en ? "Choose File" : "ফাইল নির্বাচন করুন"}
               <input type="file" hidden accept=".xlsx,.xls,.csv" onChange={onFile} />
             </Button>
           </Stack>
@@ -173,12 +202,15 @@ export default function BulkImportDialog({
           {rows.length > 0 && (
             <>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip color="success" label={`বৈধ: ${toBnDigits(validRows.length)}`} />
+                <Chip color="success" label={`${en ? "Valid" : "বৈধ"}: ${num(validRows.length)}`} />
                 {invalidCount > 0 && (
-                  <Chip color="error" label={`ত্রুটি: ${toBnDigits(invalidCount)}`} />
+                  <Chip color="error" label={`${en ? "Errors" : "ত্রুটি"}: ${num(invalidCount)}`} />
                 )}
                 {newClassCount > 0 && (
-                  <Chip color="info" label={`নতুন ক্লাস তৈরি হবে: ${toBnDigits(newClassCount)}`} />
+                  <Chip
+                    color="info"
+                    label={`${en ? "New classes to create" : "নতুন ক্লাস তৈরি হবে"}: ${num(newClassCount)}`}
+                  />
                 )}
               </Stack>
               <Box sx={{ maxHeight: 340, overflow: "auto", border: "1px solid #eee", borderRadius: 2 }}>
@@ -191,7 +223,7 @@ export default function BulkImportDialog({
                       <TableCell>Phone</TableCell>
                       <TableCell>Class</TableCell>
                       <TableCell>Section</TableCell>
-                      <TableCell>অবস্থা</TableCell>
+                      <TableCell>{en ? "Status" : "অবস্থা"}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -200,7 +232,7 @@ export default function BulkImportDialog({
                         key={r.rowNo}
                         sx={r.errors.length ? { bgcolor: "error.light", opacity: 0.95 } : undefined}
                       >
-                        <TableCell>{toBnDigits(r.rowNo)}</TableCell>
+                        <TableCell>{num(r.rowNo)}</TableCell>
                         <TableCell>{String(r.Name ?? "")}</TableCell>
                         <TableCell>{String(r.Roll ?? "")}</TableCell>
                         <TableCell>{String(r.Phone ?? "")}</TableCell>
@@ -215,10 +247,18 @@ export default function BulkImportDialog({
                             <Chip
                               size="small"
                               color="info"
-                              label={r.newClass ? "নতুন ক্লাস+শাখা" : "নতুন শাখা"}
+                              label={
+                                r.newClass
+                                  ? en
+                                    ? "New class + section"
+                                    : "নতুন ক্লাস+শাখা"
+                                  : en
+                                    ? "New section"
+                                    : "নতুন শাখা"
+                              }
                             />
                           ) : (
-                            <Chip size="small" color="success" label="ঠিক আছে" />
+                            <Chip size="small" color="success" label={en ? "OK" : "ঠিক আছে"} />
                           )}
                         </TableCell>
                       </TableRow>

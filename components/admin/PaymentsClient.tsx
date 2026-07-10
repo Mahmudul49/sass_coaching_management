@@ -37,7 +37,7 @@ import { useI18n } from "@/components/providers/I18nProvider";
 import type { MessageKey } from "@/lib/i18n/dictionaries";
 import { printReceipt, shareReceiptWhatsApp, type ReceiptData } from "@/lib/receipt";
 import type { ClassRow, PayColumn, PayRow, PayExtra } from "@/lib/admin/queries";
-import { BN_MONTHS, taka, yearOptions, toBnDigits } from "@/lib/format";
+import { BN_MONTHS, EN_MONTHS, taka as takaFmt, yearOptions, toBnDigits as bnFmt } from "@/lib/format";
 
 type Row = {
   id: string;
@@ -108,7 +108,30 @@ export default function PaymentsClient({
 }) {
   const pathname = usePathname();
   const toast = useToast();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  // Locale-bound formatters so every taka()/toBnDigits() call in this component
+  // follows the active language (English on the payments route, Bengali elsewhere).
+  const taka = (n: number) => takaFmt(n, locale);
+  const toBnDigits = (v: string | number) => bnFmt(v, locale);
+  const months = locale === "en" ? EN_MONTHS : BN_MONTHS;
+  // Display-only label for a fee column: standard fee types show the localised
+  // name; a custom ("other") fee keeps its user-defined label. The label stored
+  // on save (payment.components) is left untouched — only the on-screen text is
+  // localised — so reports and existing records are unaffected.
+  const feeLabel = (c: { type: string; label: string }) => {
+    switch (c.type) {
+      case "admission":
+        return t("fee_admission");
+      case "monthly":
+        return t("fee_monthly");
+      case "model_half":
+        return t("fee_model_half");
+      case "model_annual":
+        return t("fee_model_annual");
+      default:
+        return c.label;
+    }
+  };
   const [pending, start] = useTransition();
   // Class / month / year are LOCAL state now: changing them fetches the new grid
   // in place via a server action (no router.push / no page reload).
@@ -343,7 +366,7 @@ export default function PaymentsClient({
     ];
     const compCols: GridColDef<Row>[] = template.map((c) => ({
       field: c.key,
-      headerName: c.label,
+      headerName: feeLabel(c),
       width: 120,
       editable: true,
       type: "number",
@@ -451,7 +474,7 @@ export default function PaymentsClient({
               ))}
             </TextField>
             <TextField select label={t("c_month")} value={month} disabled={loadingData} onChange={(e) => changeFilter({ month: Number(e.target.value) })}>
-              {BN_MONTHS.map((m, i) => (
+              {months.map((m, i) => (
                 <MenuItem key={i} value={i + 1}>{m}</MenuItem>
               ))}
             </TextField>
@@ -668,7 +691,7 @@ export default function PaymentsClient({
                         {template.map((c) => (
                           <Stack key={c.key} direction="row" spacing={1} alignItems="center" sx={{ px: 1.25, py: 0.75 }}>
                             <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
-                              {c.label}
+                              {feeLabel(c)}
                             </Typography>
                             <TextField
                               type="number"

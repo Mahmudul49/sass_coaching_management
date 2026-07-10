@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { listClasses, buildPaymentRows } from "@/lib/admin/queries";
 import EmptyState from "@/components/ui/EmptyState";
 import PaymentsClient from "@/components/admin/PaymentsClient";
+import { I18nProvider } from "@/components/providers/I18nProvider";
 import { currentMonth, currentYear } from "@/lib/format";
 
 export default async function PaymentsPage({
@@ -21,11 +22,11 @@ export default async function PaymentsPage({
   if (classes.length === 0) {
     return (
       <Stack spacing={2}>
-        <Typography variant="h5">পেমেন্ট</Typography>
+        <Typography variant="h5">Payments</Typography>
         <Card sx={{ p: 2 }}>
           <EmptyState
-            title="আগে ক্লাস ও ফি স্ট্রাকচার তৈরি করুন"
-            description="পেমেন্ট নেওয়ার আগে ক্লাস, ফি ও শিক্ষার্থী থাকতে হবে।"
+            title="Create classes and a fee structure first"
+            description="You need classes, fees and students before you can take payments."
           />
         </Card>
       </Stack>
@@ -41,8 +42,9 @@ export default async function PaymentsPage({
   const { template, rows } = await buildPaymentRows(db, classId, year, month);
 
   return (
+    <I18nProvider initialLocale="en">
     <Stack spacing={2}>
-      <Typography variant="h5">পেমেন্ট</Typography>
+      <Typography variant="h5">Payments</Typography>
       <PaymentsClient
         classes={classes}
         className={className}
@@ -54,5 +56,6 @@ export default async function PaymentsPage({
         centerName={tenant.name}
       />
     </Stack>
+    </I18nProvider>
   );
 }

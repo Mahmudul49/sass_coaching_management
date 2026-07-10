@@ -1,4 +1,8 @@
-// Formatting helpers shared across the app (Bengali-facing output).
+// Formatting helpers shared across the app. Bengali-facing by default; pass
+// locale "en" to render Western digits / English month names (e.g. the admin
+// dashboard renders fully in English). The default stays "bn" so every existing
+// caller is unchanged.
+import type { Locale } from "@/lib/i18n/config";
 
 export const BN_MONTHS = [
   "জানুয়ারি",
@@ -15,23 +19,43 @@ export const BN_MONTHS = [
   "ডিসেম্বর",
 ];
 
-/** 1-12 -> Bengali month name. */
-export function monthName(month: number): string {
-  return BN_MONTHS[month - 1] ?? String(month);
+export const EN_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** 1-12 -> month name in the given locale (Bengali by default). */
+export function monthName(month: number, locale: Locale = "bn"): string {
+  const months = locale === "en" ? EN_MONTHS : BN_MONTHS;
+  return months[month - 1] ?? String(month);
 }
 
 const BN_DIGITS = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
 
-/** Convert ASCII digits in a string/number to Bengali digits. */
-export function toBnDigits(value: string | number): string {
+/**
+ * Localise digits in a string/number. Bengali by default; locale "en" keeps the
+ * ASCII digits as-is (so the same call sites work in an English view).
+ */
+export function toBnDigits(value: string | number, locale: Locale = "bn"): string {
+  if (locale === "en") return String(value);
   return String(value).replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)]);
 }
 
-/** Money formatted with Bengali digits and a ৳ sign, e.g. ৳১,২০০. */
-export function taka(amount: number): string {
+/** Money with a ৳ sign, e.g. ৳১,২০০ (bn) or ৳1,200 (en). */
+export function taka(amount: number, locale: Locale = "bn"): string {
   const rounded = Math.round(amount || 0);
   const grouped = rounded.toLocaleString("en-US");
-  return `৳${toBnDigits(grouped)}`;
+  return `৳${toBnDigits(grouped, locale)}`;
 }
 
 /** Today's date as YYYY-MM-DD (local time). */

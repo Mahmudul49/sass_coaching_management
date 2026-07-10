@@ -23,7 +23,7 @@ const STORAGE_KEY = "setup-checklist-dismissed";
 export default function SetupChecklist({ status }: { status: SetupStatus }) {
   const pathname = usePathname();
   const adminBase = tenantAdminBaseFromPath(pathname);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [dismissed, setDismissed] = useState(false);
 
   const steps = [
@@ -57,7 +57,7 @@ export default function SetupChecklist({ status }: { status: SetupStatus }) {
           )}
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          {toBnDigits(doneCount)}/{toBnDigits(steps.length)} {t("setup_steps_done")}
+          {toBnDigits(doneCount, locale)}/{toBnDigits(steps.length, locale)} {t("setup_steps_done")}
         </Typography>
         <LinearProgress variant="determinate" value={pct} sx={{ height: 8, borderRadius: 4, mb: 2 }} />
 

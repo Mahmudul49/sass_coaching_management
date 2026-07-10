@@ -47,7 +47,7 @@ export default function StudentsManager({
   title?: string;
 }) {
   const toast = useToast();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [formOpen, setFormOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<StudentRow | null>(null);
@@ -93,10 +93,10 @@ export default function StudentsManager({
     printReportTable({
       title: t("st_title"),
       subtitle: `${t("c_class")}: ${clsLabel} · ${viewLabel}`,
-      meta: [`${t("c_total")}: ${toBnDigits(shown.length)}`],
+      meta: [`${t("c_total")}: ${toBnDigits(shown.length, locale)}`],
       head: [t("c_roll"), t("c_name"), t("c_class"), t("c_section"), t("st_phone"), t("c_status")],
       rows: shown.map((s) => [
-        toBnDigits(s.roll),
+        toBnDigits(s.roll, locale),
         s.name,
         s.className,
         s.sectionName,
@@ -199,7 +199,7 @@ export default function StudentsManager({
         )
       }
       fields={[
-        { label: t("c_roll"), value: toBnDigits(s.roll) },
+        { label: t("c_roll"), value: toBnDigits(s.roll, locale) },
         { label: t("st_phone"), value: s.phone || "—" },
       ]}
       actions={[
@@ -276,7 +276,7 @@ export default function StudentsManager({
                 variant={classFilter === c.id ? "filled" : "outlined"}
                 color={classFilter === c.id ? "primary" : "default"}
                 onClick={() => setClassFilter(classFilter === c.id ? "" : c.id)}
-                label={`${c.name}: ${toBnDigits(activeByClass.get(c.id) ?? 0)}`}
+                label={`${c.name}: ${toBnDigits(activeByClass.get(c.id) ?? 0, locale)}`}
               />
             ))}
           </Stack>
@@ -290,9 +290,9 @@ export default function StudentsManager({
             flexWrap="wrap"
           >
             <ToggleButtonGroup size="small" exclusive value={view} onChange={(_e, v) => v && setView(v)}>
-              <ToggleButton value="active">{t("st_active")} ({toBnDigits(students.length - inactiveCount)})</ToggleButton>
-              <ToggleButton value="inactive">{t("st_inactive")} ({toBnDigits(inactiveCount)})</ToggleButton>
-              <ToggleButton value="all">{t("st_all")} ({toBnDigits(students.length)})</ToggleButton>
+              <ToggleButton value="active">{t("st_active")} ({toBnDigits(students.length - inactiveCount, locale)})</ToggleButton>
+              <ToggleButton value="inactive">{t("st_inactive")} ({toBnDigits(inactiveCount, locale)})</ToggleButton>
+              <ToggleButton value="all">{t("st_all")} ({toBnDigits(students.length, locale)})</ToggleButton>
             </ToggleButtonGroup>
             <TextField
               select

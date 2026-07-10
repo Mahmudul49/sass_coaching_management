@@ -4,8 +4,10 @@ import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { taka, toBnDigits } from "@/lib/format";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 const BN_SHORT = ["জা", "ফে", "মা", "এ", "মে", "জু", "জু", "আ", "সে", "অ", "ন", "ডি"];
+const EN_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**
  * Lightweight inline-SVG bar chart of monthly collection for the year — no
@@ -20,6 +22,9 @@ export default function MonthlyCollectionChart({
   year: number;
   currentMonth: number;
 }) {
+  const { locale } = useI18n();
+  const en = locale === "en";
+  const short = en ? EN_SHORT : BN_SHORT;
   const max = Math.max(1, ...monthly);
   const W = 640;
   const H = 200;
@@ -33,7 +38,7 @@ export default function MonthlyCollectionChart({
     <Card>
       <CardContent>
         <Typography variant="h6" gutterBottom>
-          মাসিক আদায় — {toBnDigits(year)}
+          {en ? "Monthly Collection" : "মাসিক আদায়"} — {toBnDigits(year, locale)}
         </Typography>
         <Box sx={{ width: "100%", overflowX: "auto" }}>
           <Box
@@ -41,7 +46,7 @@ export default function MonthlyCollectionChart({
             viewBox={`0 0 ${W} ${H}`}
             sx={{ width: "100%", minWidth: 420, height: "auto", display: "block" }}
             role="img"
-            aria-label={`${year} সালের মাসিক আদায়`}
+            aria-label={en ? `Monthly collection for ${year}` : `${year} সালের মাসিক আদায়`}
           >
             {/* baseline */}
             <line
@@ -59,7 +64,7 @@ export default function MonthlyCollectionChart({
               const isCurrent = i + 1 === currentMonth;
               return (
                 <g key={i}>
-                  <title>{`${BN_SHORT[i]}: ${taka(v)}`}</title>
+                  <title>{`${short[i]}: ${taka(v, locale)}`}</title>
                   <rect
                     x={x}
                     y={y}
@@ -76,7 +81,7 @@ export default function MonthlyCollectionChart({
                     fontSize={12}
                     fill="rgba(18,36,31,0.6)"
                   >
-                    {BN_SHORT[i]}
+                    {short[i]}
                   </text>
                 </g>
               );

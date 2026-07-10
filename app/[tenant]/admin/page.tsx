@@ -24,14 +24,20 @@ import SetupChecklist from "@/components/admin/SetupChecklist";
 import StudentsManager from "@/components/admin/StudentsManager";
 import MonthlyCollectionChart from "@/components/admin/MonthlyCollectionChart";
 import QuickActions from "@/components/admin/QuickActions";
-import { getT } from "@/lib/i18n/server";
+import { I18nProvider } from "@/components/providers/I18nProvider";
+import { dict, type MessageKey } from "@/lib/i18n/dictionaries";
 import { tenantAdminPath } from "@/lib/tenant/paths";
 import { taka, currentMonth, currentYear, monthName, toBnDigits } from "@/lib/format";
 
 export default async function AdminDashboard({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params;
   const { db } = await requireAdmin(tenant);
-  const t = await getT();
+  // The dashboard is always rendered in English (labels, numbers, currency and
+  // month names), independent of the app-wide language toggle. `t` reads the
+  // English catalogue directly and the whole subtree is wrapped in an English
+  // I18nProvider below so client children (quick actions, students table, etc.)
+  // render in English too.
+  const t = (k: MessageKey) => dict.en[k] ?? k;
   const status = await getSetupStatus(db);
 
   // First run: no classes yet -> jump straight into the guided wizard.
@@ -47,18 +53,19 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
   ]);
 
   const cards = [
-    { label: t("active_students"), value: toBnDigits(stats.activeStudents), icon: <GroupsIcon />, color: "#0F7A6B" },
-    { label: t("today_collection"), value: taka(stats.todayCollection), icon: <TodayIcon />, color: "#0284C7" },
-    { label: t("month_collection"), value: taka(stats.monthCollection), icon: <PaidIcon />, color: "#16A34A" },
-    { label: t("month_due"), value: taka(stats.monthDue), icon: <MoneyOffIcon />, color: "#DC2626" },
-    { label: t("year_collection"), value: taka(stats.yearCollection), icon: <AccountBalanceWalletIcon />, color: "#7C3AED" },
-    { label: t("year_due"), value: taka(stats.yearDue), icon: <CalendarMonthIcon />, color: "#B45309" },
+    { label: t("active_students"), value: toBnDigits(stats.activeStudents, "en"), icon: <GroupsIcon />, color: "#0F7A6B" },
+    { label: t("today_collection"), value: taka(stats.todayCollection, "en"), icon: <TodayIcon />, color: "#0284C7" },
+    { label: t("month_collection"), value: taka(stats.monthCollection, "en"), icon: <PaidIcon />, color: "#16A34A" },
+    { label: t("month_due"), value: taka(stats.monthDue, "en"), icon: <MoneyOffIcon />, color: "#DC2626" },
+    { label: t("year_collection"), value: taka(stats.yearCollection, "en"), icon: <AccountBalanceWalletIcon />, color: "#7C3AED" },
+    { label: t("year_due"), value: taka(stats.yearDue, "en"), icon: <CalendarMonthIcon />, color: "#B45309" },
   ];
 
   const monthPayable = stats.monthCollection + stats.monthDue;
   const monthPct = monthPayable > 0 ? Math.round((stats.monthCollection / monthPayable) * 100) : 0;
 
   return (
+    <I18nProvider initialLocale="en">
     <Stack spacing={2.5}>
       <Typography variant="h5">{t("nav_dashboard")}</Typography>
 
@@ -87,10 +94,10 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
         <CardContent>
           <Stack direction="row" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="body2" color="text.secondary">
-              {monthName(month)} {t("dash_progress_suffix")}
+              {monthName(month, "en")} {t("dash_progress_suffix")}
             </Typography>
             <Typography variant="body2" fontWeight={700}>
-              {toBnDigits(monthPct)}%
+              {toBnDigits(monthPct, "en")}%
             </Typography>
           </Stack>
           <LinearProgress
@@ -101,10 +108,10 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
           />
           <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
             <Typography variant="caption" color="success.main">
-              {t("dash_collected")}: {taka(stats.monthCollection)}
+              {t("dash_collected")}: {taka(stats.monthCollection, "en")}
             </Typography>
             <Typography variant="caption" color="error.main">
-              {t("dash_due")}: {taka(stats.monthDue)}
+              {t("dash_due")}: {taka(stats.monthDue, "en")}
             </Typography>
           </Stack>
         </CardContent>
@@ -116,5 +123,6 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
 
       <StudentsManager students={students} classes={classes} sections={sections} />
     </Stack>
+    </I18nProvider>
   );
 }
