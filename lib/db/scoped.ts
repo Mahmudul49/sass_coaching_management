@@ -10,6 +10,7 @@ import type {
   CountDocumentsOptions,
   AggregateOptions,
   FindOneAndUpdateOptions,
+  AnyBulkWriteOperation,
 } from "mongodb";
 import { getDb } from "./connect";
 import type { CollectionName } from "./collections";
@@ -115,6 +116,53 @@ export function forTenant(tenantId: string) {
           merged as UpdateFilter<T>,
           options ?? {}
         );
+      },
+
+      /**
+       * Scoped bulk write. Every operation is rewritten so the bound tenantId is
+       * forced into its filter, its inserted/replacement document, and its
+       * upsert `$setOnInsert` — exactly like the single-document methods. A
+       * caller can never reach another tenant's data through a bulk op, and an
+       * upserted row can never be created without a tenantId.
+       */
+      async bulkWrite(ops: AnyBulkWriteOperation<T>[], options?: BulkWriteOptions) {
+        const scoped = ops.map((op) => {
+          const o = op as unknown as Record<string, Record<string, unknown>>;
+          if (o.insertOne) {
+            return {
+              insertOne: {
+                document: injectDoc(tenantId, o.insertOne.document as OptionalUnlessRequiredId<T>),
+              },
+            };
+          }
+          if (o.updateOne || o.updateMany) {
+            const key = o.updateOne ? "updateOne" : "updateMany";
+            const u = o[key] as { filter: Filter<T>; update: unknown; upsert?: boolean };
+            // Aggregation-pipeline updates ([{...}]) can't carry a $setOnInsert;
+            // pass them through with only the filter scoped (upsert not used here).
+            const update = Array.isArray(u.update)
+              ? u.update
+              : withTenantOnInsert(tenantId, u.update as UpdateFilter<T> | Partial<T>);
+            return { [key]: { ...u, filter: injectFilter(tenantId, u.filter), update } };
+          }
+          if (o.replaceOne) {
+            const r = o.replaceOne as { filter: Filter<T>; replacement: object; upsert?: boolean };
+            return {
+              replaceOne: {
+                ...r,
+                filter: injectFilter(tenantId, r.filter),
+                replacement: { ...r.replacement, tenantId },
+              },
+            };
+          }
+          if (o.deleteOne || o.deleteMany) {
+            const key = o.deleteOne ? "deleteOne" : "deleteMany";
+            const d = o[key] as { filter: Filter<T> };
+            return { [key]: { ...d, filter: injectFilter(tenantId, d.filter) } };
+          }
+          return op; // unknown shape — should not occur
+        });
+        return (await col()).bulkWrite(scoped as AnyBulkWriteOperation<T>[], options);
       },
 
       async deleteOne(filter: Filter<T>) {

@@ -10,6 +10,11 @@ const nextConfig = {
     // Enables next/navigation `forbidden()` / `unauthorized()` (403 / 401).
     authInterrupts: true,
   },
+  // Serve the Android Digital Asset Links file at the exact well-known path a
+  // Trusted Web Activity (the APK) looks for, backed by an env-driven route.
+  async rewrites() {
+    return [{ source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" }];
+  },
 };
 
 export default nextConfig;

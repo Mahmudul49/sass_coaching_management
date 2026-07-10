@@ -1,16 +1,22 @@
 {
+  "id": "/",
   "name": "কোচিং ম্যানেজমেন্ট",
   "short_name": "কোচিং",
   "description": "কোচিং সেন্টার ব্যবস্থাপনা",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#F4F6F3",
   "theme_color": "#0F7A6B",
   "lang": "bn",
   "dir": "ltr",
+  "categories": ["education", "productivity", "business"],
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }

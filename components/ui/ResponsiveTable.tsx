@@ -4,8 +4,10 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
 import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
 import {
   DataGrid,
   GridToolbarContainer,
@@ -47,60 +49,73 @@ export default function ResponsiveTable<T extends WithId>({
   getRowId?: GridRowIdGetter<T>;
   gridMinWidth?: number;
 }) {
-  const [mobileSearch, setMobileSearch] = useState("");
+  const [search, setSearch] = useState("");
 
-  const mobileRows = useMemo(() => {
-    if (!filterText || !mobileSearch.trim()) return rows;
-    const q = mobileSearch.trim().toLowerCase();
+  // One instant, no-reload filter shared by BOTH presentations (cards + grid).
+  const filtered = useMemo(() => {
+    if (!filterText || !search.trim()) return rows;
+    const q = search.trim().toLowerCase();
     return rows.filter((r) => filterText(r).toLowerCase().includes(q));
-  }, [rows, filterText, mobileSearch]);
+  }, [rows, filterText, search]);
 
+  // When we own a prominent search field, the grid's built-in quick filter is
+  // redundant; keep it only as a fallback for tables that pass no filterText.
   function Toolbar() {
     return (
       <GridToolbarContainer sx={{ p: 1, gap: 1 }}>
         <GridToolbarFilterButton />
         {extraToolbar}
         <Box sx={{ flex: 1 }} />
-        <GridToolbarQuickFilter placeholder={searchPlaceholder} />
+        {!filterText && <GridToolbarQuickFilter placeholder={searchPlaceholder} />}
       </GridToolbarContainer>
     );
   }
 
   return (
     <>
+      {/* Prominent instant search — visible on mobile and desktop alike */}
+      {filterText && (
+        <TextField
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={searchPlaceholder}
+          size="small"
+          fullWidth
+          sx={{ mb: 1.5, maxWidth: { md: 420 } }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+            endAdornment: search ? (
+              <InputAdornment position="end">
+                <IconButton size="small" edge="end" aria-label="clear search" onClick={() => setSearch("")}>
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ) : null,
+          }}
+        />
+      )}
+
       {/* Mobile: cards */}
       <Box sx={{ display: { xs: "block", md: "none" } }}>
-        {filterText && (
-          <TextField
-            value={mobileSearch}
-            onChange={(e) => setMobileSearch(e.target.value)}
-            placeholder={searchPlaceholder}
-            size="small"
-            sx={{ mb: 1.5 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
-          />
-        )}
-        {mobileRows.length === 0 ? (
+        {filtered.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }}>
             কিছু পাওয়া যায়নি।
           </Typography>
         ) : (
-          <Stack spacing={1.25}>{mobileRows.map((r) => <Box key={r.id}>{renderCard(r)}</Box>)}</Stack>
+          <Stack spacing={1.25}>{filtered.map((r) => <Box key={r.id}>{renderCard(r)}</Box>)}</Stack>
         )}
       </Box>
 
-      {/* Desktop: DataGrid */}
+      {/* Desktop: DataGrid (fed the same filtered rows) */}
       <Box sx={{ display: { xs: "none", md: "block" }, width: "100%" }}>
         <Box sx={{ minWidth: gridMinWidth }}>
           <DataGrid
             autoHeight
-            rows={rows}
+            rows={filtered}
             columns={columns}
             getRowId={getRowId}
             disableRowSelectionOnClick

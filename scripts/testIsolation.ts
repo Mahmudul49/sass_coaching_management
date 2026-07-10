@@ -88,6 +88,20 @@ async function main() {
   const agg = await (await a.aggregate([{ $count: "n" }])).toArray();
   check("A.aggregate count == 2 (alice+carol)", (agg[0] as { n?: number })?.n === 2);
 
+  // 9. bulkWrite upsert stamps tenantId on the new doc.
+  await a.bulkWrite([{ updateOne: { filter: { name: "dave" } as never, update: { $set: { v: 1 } } as never, upsert: true } }]);
+  const dave = await db.collection(COL).findOne({ name: "dave" });
+  check("bulkWrite upsert stamps tenantId", (dave as { tenantId?: string })?.tenantId === A);
+
+  // 10. bulkWrite from A cannot modify B's doc (tenantId forced to A → no match).
+  await a.bulkWrite([{ updateOne: { filter: { tenantId: B, name: "bob" } as never, update: { $set: { hacked: true } } as never } }]);
+  const bobAfterBulk = await db.collection(COL).findOne({ name: "bob" });
+  check("bulkWrite cannot modify another tenant's doc", (bobAfterBulk as { hacked?: boolean })?.hacked !== true);
+
+  // 11. bulkWrite delete from A cannot remove B's doc.
+  await a.bulkWrite([{ deleteOne: { filter: { name: "bob" } as never } }]);
+  check("bulkWrite deleteOne cannot delete another tenant's doc", (await b.countDocuments()) === 1);
+
   // cleanup
   await db.collection(COL).deleteMany({});
 

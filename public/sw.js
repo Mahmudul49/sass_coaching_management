@@ -1,10 +1,19 @@
-// Minimal app-shell service worker.
-// - Precache the icon/manifest.
+// App-shell service worker.
+// - Precache the offline page, manifest and icons.
 // - Static assets (/_next/static, icons): cache-first (immutable, hashed).
-// - Navigations & everything else: network-first with cache fallback so the
-//   app still opens on a flaky/offline connection. API/auth calls are skipped.
-const CACHE = "coaching-shell-v1";
-const PRECACHE = ["/manifest.webmanifest", "/icon.svg"];
+// - Navigations: network-first, falling back to the cached page, then to a
+//   friendly offline page when there is nothing cached.
+// - Everything else: network-first with cache fallback. API/auth calls skipped.
+const CACHE = "coaching-shell-v2";
+const OFFLINE_URL = "/offline.html";
+const PRECACHE = [
+  "/offline.html",
+  "/manifest.webmanifest",
+  "/icon.svg",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/apple-touch-icon.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)));
@@ -30,7 +39,8 @@ self.addEventListener("fetch", (event) => {
   const isStatic =
     url.pathname.startsWith("/_next/static") ||
     url.pathname === "/icon.svg" ||
-    url.pathname === "/manifest.webmanifest";
+    url.pathname === "/manifest.webmanifest" ||
+    /\.(png|svg|ico|woff2?)$/.test(url.pathname);
 
   if (isStatic) {
     event.respondWith(
@@ -47,7 +57,23 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first for pages.
+  // Navigations (page loads): network-first → cached page → offline page.
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, copy));
+          return res;
+        })
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match(OFFLINE_URL))
+        )
+    );
+    return;
+  }
+
+  // Everything else: network-first with cache fallback.
   event.respondWith(
     fetch(request)
       .then((res) => {

@@ -21,6 +21,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Collapse from "@mui/material/Collapse";
 import LinearProgress from "@mui/material/LinearProgress";
 import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
 import TuneIcon from "@mui/icons-material/Tune";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import SaveIcon from "@mui/icons-material/Save";
@@ -29,7 +30,7 @@ import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import { useToast } from "@/components/providers/ToastProvider";
-import { savePayment } from "@/app/[tenant]/admin/actions/payments";
+import { savePayment, savePaymentsBulk } from "@/app/[tenant]/admin/actions/payments";
 import { useI18n } from "@/components/providers/I18nProvider";
 import type { MessageKey } from "@/lib/i18n/dictionaries";
 import { printReceipt, shareReceiptWhatsApp, type ReceiptData } from "@/lib/receipt";
@@ -101,8 +102,9 @@ export default function PaymentsClient({
 
   const toggleExpand = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
 
-  // Mobile-only filter (name/roll) for quick lookup in a long class list.
-  const mobileRows = mobileQ.trim()
+  // Instant client-side filter (name/roll) shared by the mobile cards AND the
+  // desktop grid — quick lookup in a long class list, no navigation/reload.
+  const filteredRows = mobileQ.trim()
     ? rows.filter((r) => `${r.name} ${r.roll}`.toLowerCase().includes(mobileQ.trim().toLowerCase()))
     : rows;
 
@@ -180,13 +182,39 @@ export default function PaymentsClient({
 
   function saveAll() {
     start(async () => {
-      let okCount = 0;
-      for (const row of rows) {
-        const res = await persist(row);
-        if (res.ok) okCount++;
+      let res: Awaited<ReturnType<typeof savePaymentsBulk>>;
+      try {
+        res = await savePaymentsBulk(
+          rows.map((row) => ({
+            studentId: row.id,
+            classId,
+            year,
+            month,
+            components: buildComponents(row),
+            paidAmount: Number(row.paidAmount) || 0,
+            remarks: String(row.remarks ?? ""),
+          }))
+        );
+      } catch {
+        // Network / server error — nothing was reported saved; keep edits to retry.
+        toast.error(t("c_something_wrong"));
+        return;
       }
-      toast.success(`${toBnDigits(okCount)} ${t("pay_saved_n")}`);
-      router.refresh();
+      if (res.ok) {
+        // Reconcile locally (clamp paid to total, mark saved) rather than a full
+        // page re-fetch — the client already holds exactly what was persisted, so
+        // the save feels instant. Cross-page caches were revalidated server-side.
+        setRows((rs) =>
+          rs.map((r) => ({
+            ...r,
+            paidAmount: Math.max(0, Math.min(Number(r.paidAmount) || 0, rowTotal(r))),
+            saved: true,
+          }))
+        );
+        toast.success(`${toBnDigits(res.saved)} ${t("pay_saved_n")}`);
+      } else {
+        toast.error(`${toBnDigits(res.saved)} ${t("pay_saved_n")} · ${toBnDigits(res.failed)} ${t("pay_failed_n")}`);
+      }
     });
   }
 
@@ -389,11 +417,20 @@ export default function PaymentsClient({
               value={mobileQ}
               onChange={(e) => setMobileQ(e.target.value)}
               sx={{ mb: 1.5 }}
-              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                endAdornment: mobileQ ? (
+                  <InputAdornment position="end">
+                    <IconButton size="small" edge="end" aria-label="clear search" onClick={() => setMobileQ("")}>
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+              }}
             />
 
             <Stack spacing={1.5}>
-            {mobileRows.map((row) => {
+            {filteredRows.map((row) => {
               const total = rowTotal(row);
               const paid = Number(row.paidAmount) || 0;
               const isFull = total > 0 && paid >= total;
@@ -583,11 +620,28 @@ export default function PaymentsClient({
 
           {/* Desktop: editable grid (scrolls within the card, never the page) */}
           <Card sx={{ p: { xs: 1, sm: 2 }, display: { xs: "none", md: "block" } }}>
+            <TextField
+              size="small"
+              placeholder={t("pay_search")}
+              value={mobileQ}
+              onChange={(e) => setMobileQ(e.target.value)}
+              sx={{ mb: 1.5, maxWidth: 420 }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                endAdornment: mobileQ ? (
+                  <InputAdornment position="end">
+                    <IconButton size="small" edge="end" aria-label="clear search" onClick={() => setMobileQ("")}>
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+              }}
+            />
             <Box sx={{ width: "100%", overflowX: "auto" }}>
               <Box sx={{ minWidth: 720 }}>
                 <DataGrid
                   autoHeight
-                  rows={rows}
+                  rows={filteredRows}
                   columns={columns}
                   processRowUpdate={processRowUpdate}
                   onProcessRowUpdateError={() => toast.error(t("pay_update_failed"))}

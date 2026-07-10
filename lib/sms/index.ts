@@ -25,6 +25,10 @@ async function deliver(to: string, body: string): Promise<boolean> {
     return true;
   }
 
+  // Bound each delivery so a slow/hung gateway can never stall the caller (e.g.
+  // "Save all payments" waiting on the SMS round-trips).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     // Generic HTTP gateway shape — adjust field names for your provider.
     const res = await fetch(process.env.SMS_API_URL, {
@@ -36,11 +40,14 @@ async function deliver(to: string, body: string): Promise<boolean> {
         number: to,
         message: body,
       }),
+      signal: controller.signal,
     });
     return res.ok;
   } catch (err) {
     console.error("SMS delivery failed:", err);
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -63,24 +70,34 @@ export async function sendSms(args: SendSmsArgs): Promise<{ ok: boolean }> {
 /**
  * Send many SMS for one tenant. Returns how many were accepted. Phones that are
  * empty/blank are skipped (and not logged).
+ *
+ * Deliveries run concurrently (the stub returns instantly; a real gateway fans
+ * out in parallel instead of one-blocking-round-trip-at-a-time) and all log rows
+ * are written with a SINGLE insertMany — so a bulk save no longer pays N serial
+ * DB writes on its critical path.
  */
 export async function sendSmsBatch(
   tenantId: string,
   messages: Array<{ to: string; body: string; studentId?: string | null; kind: SmsKind }>
 ): Promise<{ sent: number; failed: number }> {
-  let sent = 0;
-  let failed = 0;
-  for (const m of messages) {
-    if (!m.to || !m.to.trim()) continue;
-    const { ok } = await sendSms({
-      to: m.to.trim(),
-      body: m.body,
-      tenantId,
-      studentId: m.studentId ?? null,
-      kind: m.kind,
-    });
-    if (ok) sent++;
-    else failed++;
-  }
-  return { sent, failed };
+  const valid = messages
+    .map((m) => ({ ...m, to: m.to?.trim() ?? "" }))
+    .filter((m) => m.to);
+  if (valid.length === 0) return { sent: 0, failed: 0 };
+
+  const results = await Promise.all(valid.map((m) => deliver(m.to, m.body)));
+
+  const now = new Date();
+  const logs = valid.map((m, i) => ({
+    studentId: m.studentId ?? null,
+    phone: m.to,
+    body: m.body,
+    kind: m.kind,
+    sentAt: now,
+    ok: results[i],
+  }));
+  await forTenant(tenantId).collection(Collections.smsLog).insertMany(logs as never);
+
+  const sent = results.filter(Boolean).length;
+  return { sent, failed: results.length - sent };
 }

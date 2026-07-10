@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Hind_Siliguri } from "next/font/google";
 import ThemeRegistry from "@/components/providers/ThemeRegistry";
 import ServiceWorkerRegister from "@/components/providers/ServiceWorkerRegister";
+import InstallPrompt from "@/components/providers/InstallPrompt";
 import { I18nProvider } from "@/components/providers/I18nProvider";
 import { getLocale } from "@/lib/i18n/server";
 
@@ -20,8 +21,12 @@ export const metadata: Metadata = {
   applicationName: "কোচিং ম্যানেজমেন্ট",
   appleWebApp: { capable: true, title: "কোচিং", statusBarStyle: "default" },
   icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/icon.svg" }],
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
 };
 
@@ -29,6 +34,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: "cover",
   themeColor: "#0F7A6B",
 };
 
@@ -38,7 +44,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang={locale} className={hindSiliguri.variable}>
       <body style={{ margin: 0 }}>
         <ThemeRegistry>
-          <I18nProvider initialLocale={locale}>{children}</I18nProvider>
+          <I18nProvider initialLocale={locale}>
+            {children}
+            <InstallPrompt />
+          </I18nProvider>
         </ThemeRegistry>
         <ServiceWorkerRegister />
       </body>
