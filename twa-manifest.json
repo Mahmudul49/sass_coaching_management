@@ -14,7 +14,7 @@
   "navigationDividerColorDark": "#000000",
   "backgroundColor": "#F4F6F3",
   "enableNotifications": false,
-  "startUrl": "/",
+  "startUrl": "/learning-hub/login",
   "iconUrl": "https://<YOUR-DOMAIN>/icon-512.png",
   "maskableIconUrl": "https://<YOUR-DOMAIN>/icon-maskable-512.png",
   "appVersionCode": 1,

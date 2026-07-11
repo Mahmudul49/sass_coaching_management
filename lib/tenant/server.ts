@@ -53,6 +53,21 @@ export async function getTenantBySlug(slug: string): Promise<PublicTenant | null
   return value;
 }
 
+/** Look a tenant up by its id. Returns null if not found / bad id. */
+export async function getTenantById(id: string): Promise<PublicTenant | null> {
+  if (!id) return null;
+  const { ObjectId } = await import("mongodb");
+  let _id: InstanceType<typeof ObjectId>;
+  try {
+    _id = new ObjectId(id);
+  } catch {
+    return null;
+  }
+  const db = await getDb();
+  const doc = await db.collection<TenantDoc>(Collections.tenants).findOne({ _id });
+  return doc ? toPublic(doc) : null;
+}
+
 /** Invalidate the cache for a slug (call after create/activate/deactivate). */
 export function invalidateTenant(slug: string) {
   cache.delete(slug);
