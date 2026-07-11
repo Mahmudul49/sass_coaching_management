@@ -30,9 +30,11 @@ import { tenantSiteLabel, tenantSiteUrl } from "@/lib/tenant/paths";
 export default function TenantsClient({
   tenants,
   rootDomain,
+  canManage = false,
 }: {
   tenants: TenantRow[];
   rootDomain: string;
+  canManage?: boolean;
 }) {
   const toast = useToast();
   const { t } = useI18n();
@@ -77,33 +79,37 @@ export default function TenantsClient({
             <Chip label={t("sa_inactive")} color="default" size="small" />
           ),
       },
-      {
-        field: "actions",
-        headerName: t("c_action"),
-        width: 130,
-        sortable: false,
-        filterable: false,
-        renderCell: (p) => (
-          <>
-            <Tooltip title={t("edit")}>
-              <IconButton size="small" onClick={() => setEditing(p.row)}>
-                <EditIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Button
-              size="small"
-              color={p.row.active ? "error" : "success"}
-              variant="outlined"
-              disabled={pending}
-              onClick={() => toggle(p.row)}
-            >
-              {p.row.active ? t("sa_inactive") : t("sa_active")}
-            </Button>
-          </>
-        ),
-      },
+      ...(canManage
+        ? [
+            {
+              field: "actions",
+              headerName: t("c_action"),
+              width: 130,
+              sortable: false,
+              filterable: false,
+              renderCell: (p) => (
+                <>
+                  <Tooltip title={t("edit")}>
+                    <IconButton size="small" onClick={() => setEditing(p.row)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Button
+                    size="small"
+                    color={p.row.active ? "error" : "success"}
+                    variant="outlined"
+                    disabled={pending}
+                    onClick={() => toggle(p.row)}
+                  >
+                    {p.row.active ? t("sa_inactive") : t("sa_active")}
+                  </Button>
+                </>
+              ),
+            } as GridColDef<TenantRow>,
+          ]
+        : []),
     ],
-    [pending, rootDomain, t]
+    [pending, rootDomain, t, canManage]
   );
 
   function toggle(row: TenantRow) {
@@ -123,17 +129,19 @@ export default function TenantsClient({
         sx={{ mb: 1.5 }}
       >
         <Typography variant="h6">{t("sa_centers")}</Typography>
-        <Button startIcon={<AddIcon />} onClick={() => setOpen(true)}>
-          {t("sa_new_center")}
-        </Button>
+        {canManage && (
+          <Button startIcon={<AddIcon />} onClick={() => setOpen(true)}>
+            {t("sa_new_center")}
+          </Button>
+        )}
       </Stack>
 
       {tenants.length === 0 ? (
         <EmptyState
           title={t("sa_no_centers")}
           description={t("sa_no_centers_desc")}
-          actionLabel={t("sa_new_center")}
-          onAction={() => setOpen(true)}
+          actionLabel={canManage ? t("sa_new_center") : undefined}
+          onAction={canManage ? () => setOpen(true) : undefined}
         />
       ) : (
         <ResponsiveTable
@@ -163,25 +171,29 @@ export default function TenantsClient({
                 { label: t("st_phone"), value: row.adminPhone },
                 { label: t("nav_students"), value: toBnDigits(row.studentCount ?? 0, "en") },
               ]}
-              actions={[
-                {
-                  label: t("edit"),
-                  icon: <EditIcon fontSize="small" />,
-                  onClick: () => setEditing(row),
-                },
-                row.active
-                  ? {
-                      label: t("sa_inactive"),
-                      icon: <BlockIcon fontSize="small" />,
-                      danger: true,
-                      onClick: () => toggle(row),
-                    }
-                  : {
-                      label: t("sa_active"),
-                      icon: <CheckCircleIcon fontSize="small" />,
-                      onClick: () => toggle(row),
-                    },
-              ]}
+              actions={
+                canManage
+                  ? [
+                      {
+                        label: t("edit"),
+                        icon: <EditIcon fontSize="small" />,
+                        onClick: () => setEditing(row),
+                      },
+                      row.active
+                        ? {
+                            label: t("sa_inactive"),
+                            icon: <BlockIcon fontSize="small" />,
+                            danger: true,
+                            onClick: () => toggle(row),
+                          }
+                        : {
+                            label: t("sa_active"),
+                            icon: <CheckCircleIcon fontSize="small" />,
+                            onClick: () => toggle(row),
+                          },
+                    ]
+                  : []
+              }
             />
           )}
         />

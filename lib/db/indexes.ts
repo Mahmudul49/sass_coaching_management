@@ -69,5 +69,8 @@ export async function ensureIndexes(db: Db): Promise<void> {
 
     // smsLog
     db.collection(Collections.smsLog).createIndex({ tenantId: 1, sentAt: -1 }),
+
+    // themeSettings: a single global console theme doc keyed by scope.
+    db.collection(Collections.themeSettings).createIndex({ scope: 1 }, { unique: true }),
   ]);
 }

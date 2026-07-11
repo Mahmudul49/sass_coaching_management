@@ -20,11 +20,18 @@ export const Collections = {
   attendance: "attendance",
   payments: "payments",
   smsLog: "smsLog",
+  themeSettings: "themeSettings",
 } as const;
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections];
 
-export type Role = "superadmin" | "admin";
+/**
+ * Roles:
+ *   - superadmin     — full central-console access (tenantId null).
+ *   - platform_admin — restricted central-console staff (tenantId null).
+ *   - admin          — a per-coaching-center tenant admin (tenantId set).
+ */
+export type Role = "superadmin" | "platform_admin" | "admin";
 
 export type TenantDoc = {
   _id: ObjectId;
@@ -41,11 +48,14 @@ export type TenantDoc = {
 
 export type UserDoc = {
   _id: ObjectId;
-  tenantId: string | null; // null only for the superadmin
+  tenantId: string | null; // null for platform users (superadmin / platform_admin)
   name: string;
   phone: string;
   passwordHash: string;
   role: Role;
+  // Platform-user activation flag. Absent (legacy) or true = active; only an
+  // explicit `false` disables login. Tenant admins are gated by tenant.active.
+  active?: boolean;
 };
 
 export type ClassDoc = {
@@ -152,4 +162,33 @@ export type SmsLogDoc = {
   kind: SmsKind;
   sentAt: Date;
   ok: boolean;
+};
+
+/**
+ * Central-console theme (SuperAdmin Theme Builder). A single global document
+ * (`scope: "console"`) holding a light + dark palette of design tokens. Only
+ * the central back-office consumes this; tenant UIs keep their built-in theme.
+ */
+export type ThemePalette = {
+  primary: string;
+  secondary: string;
+  accent: string;
+  success: string;
+  warning: string;
+  error: string;
+  background: string;
+  surface: string;
+  text: string;
+  border: string;
+  sidebar: string;
+  navbar: string;
+  button: string;
+};
+
+export type ThemeDoc = {
+  _id: ObjectId;
+  scope: "console";
+  light: ThemePalette;
+  dark: ThemePalette;
+  updatedAt: Date;
 };

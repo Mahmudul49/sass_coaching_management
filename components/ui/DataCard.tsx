@@ -11,6 +11,7 @@ import MenuItem from "@mui/material/MenuItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { alpha } from "@mui/material/styles";
 
 export type CardAction = {
   label: string;
@@ -41,10 +42,24 @@ export default function DataCard({
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 3,
+        transition: "border-color .16s ease, box-shadow .16s ease, transform .16s ease",
+        "&:hover": {
+          borderColor: (t) => alpha(t.palette.primary.main, 0.3),
+          boxShadow: 2,
+          ...(onClick && { transform: "translateY(-1px)" }),
+        },
+      }}
+    >
       <CardContent sx={{ p: 1.75, "&:last-child": { pb: 1.75 } }}>
         <Stack direction="row" alignItems="flex-start" spacing={1}>
-          <Box sx={{ flex: 1, minWidth: 0 }} onClick={onClick}>
+          <Box
+            sx={{ flex: 1, minWidth: 0, cursor: onClick ? "pointer" : "default" }}
+            onClick={onClick}
+          >
             <Typography variant="subtitle1" fontWeight={700} noWrap>
               {title}
             </Typography>
@@ -67,14 +82,26 @@ export default function DataCard({
             direction="row"
             flexWrap="wrap"
             useFlexGap
-            sx={{ mt: 1, gap: 1.5, columnGap: 2.5 }}
+            sx={{
+              mt: 1.5,
+              pt: 1.5,
+              gap: 1.5,
+              columnGap: 3,
+              borderTop: "1px dashed",
+              borderColor: "divider",
+            }}
           >
             {fields.map((f, i) => (
               <Box key={i}>
-                <Typography variant="caption" color="text.secondary" display="block">
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                  sx={{ textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "0.64rem", fontWeight: 600 }}
+                >
                   {f.label}
                 </Typography>
-                <Typography variant="body2" fontWeight={600}>
+                <Typography variant="body2" fontWeight={650} sx={{ fontVariantNumeric: "tabular-nums" }}>
                   {f.value}
                 </Typography>
               </Box>

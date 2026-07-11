@@ -14,7 +14,7 @@ export default async function Home() {
   const session = await auth();
   const role = session?.user?.role;
 
-  if (role === "superadmin") redirect("/superadmin");
+  if (role === "superadmin" || role === "platform_admin") redirect("/superadmin");
 
   if (role === "admin" && session?.user?.tenantId) {
     const tenant = await getTenantById(session.user.tenantId);

@@ -3,9 +3,11 @@ import { getDb } from "@/lib/db/connect";
 import {
   Collections,
   type ClassDoc,
+  type Role,
   type SectionDoc,
   type StudentDoc,
   type TenantDoc,
+  type UserDoc,
 } from "@/lib/db/collections";
 
 /**
@@ -71,6 +73,39 @@ export async function listTenants(): Promise<TenantRow[]> {
     studentCount: countMap.get(t._id.toString()) ?? 0,
     createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : "",
   }));
+}
+
+/** Platform user (superadmin / platform_admin) row for the Users page. */
+export type PlatformUserRow = {
+  id: string;
+  name: string;
+  phone: string;
+  role: Extract<Role, "superadmin" | "platform_admin">;
+  active: boolean;
+};
+
+/** List all central-console users (tenantId null). Newest superadmins first. */
+export async function listPlatformUsers(): Promise<PlatformUserRow[]> {
+  const db = await getDb();
+  const users = await db
+    .collection<UserDoc>(Collections.users)
+    .find({ tenantId: null })
+    .toArray();
+
+  return users
+    .filter((u) => u.role === "superadmin" || u.role === "platform_admin")
+    .map((u) => ({
+      id: u._id.toString(),
+      name: u.name,
+      phone: u.phone,
+      role: u.role as PlatformUserRow["role"],
+      active: u.active !== false,
+    }))
+    .sort((a, b) => {
+      // Superadmins first, then by name.
+      if (a.role !== b.role) return a.role === "superadmin" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
 }
 
 /** Cross-tenant student row for super-admin marketing / outreach. */

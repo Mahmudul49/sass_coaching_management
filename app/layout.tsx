@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Hind_Siliguri } from "next/font/google";
+import { Hind_Siliguri, Bricolage_Grotesque } from "next/font/google";
 import ThemeRegistry from "@/components/providers/ThemeRegistry";
 import ServiceWorkerRegister from "@/components/providers/ServiceWorkerRegister";
 import InstallPrompt from "@/components/providers/InstallPrompt";
@@ -12,6 +12,15 @@ const hindSiliguri = Hind_Siliguri({
   weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-bengali",
+});
+
+// Distinctive display face for headings + figures (Latin). Bengali glyphs it
+// lacks fall through to Hind Siliguri automatically (per-glyph fallback).
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-display",
 });
 
 export const metadata: Metadata = {
@@ -41,7 +50,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getLocale();
   return (
-    <html lang={locale} className={hindSiliguri.variable}>
+    <html lang={locale} className={`${hindSiliguri.variable} ${bricolage.variable}`}>
       <body style={{ margin: 0 }}>
         <ThemeRegistry>
           <I18nProvider initialLocale={locale}>

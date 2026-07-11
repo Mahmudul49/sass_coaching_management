@@ -30,6 +30,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import SchoolIcon from "@mui/icons-material/School";
 import LogoutButton from "./LogoutButton";
 import LanguageToggle from "./LanguageToggle";
+import { alpha } from "@mui/material/styles";
 import { tenantAdminBaseFromPath } from "./tenantAdminBase";
 import { useI18n } from "@/components/providers/I18nProvider";
 
@@ -71,37 +72,72 @@ export default function AdminShell({
 
   const drawerContent = (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Toolbar sx={{ gap: 1 }}>
-        <SchoolIcon color="primary" />
-        <Typography variant="subtitle1" fontWeight={800} noWrap>
+      <Toolbar sx={{ gap: 1.25 }}>
+        <Box
+          sx={{
+            width: 34,
+            height: 34,
+            borderRadius: 2,
+            display: "grid",
+            placeItems: "center",
+            color: "primary.main",
+            bgcolor: (th) => alpha(th.palette.primary.main, 0.12),
+            border: (th) => `1px solid ${alpha(th.palette.primary.main, 0.22)}`,
+            flexShrink: 0,
+          }}
+        >
+          <SchoolIcon fontSize="small" />
+        </Box>
+        <Typography variant="subtitle1" fontWeight={750} noWrap sx={{ letterSpacing: "-0.01em" }}>
           {centerName}
         </Typography>
       </Toolbar>
       <Divider />
-      <List sx={{ flexGrow: 1, py: 1, px: 1 }}>
-        {nav.map((item) => (
-          <ListItem key={item.href} disablePadding>
-            <ListItemButton
-              component={NextLink}
-              href={item.href}
-              selected={isActive(item.href)}
-              onClick={() => setMobileOpen(false)}
-              sx={{
-                mb: 0.5,
-                minHeight: 48,
-                "&.Mui-selected": {
-                  bgcolor: "primary.main",
-                  color: "#fff",
-                  "& .MuiListItemIcon-root": { color: "#fff" },
-                  "&:hover": { bgcolor: "primary.dark" },
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
-            </ListItemButton>
-          </ListItem>
-        ))}
+      <List sx={{ flexGrow: 1, py: 1.25, px: 1 }}>
+        {nav.map((item) => {
+          const active = isActive(item.href);
+          return (
+            <ListItem key={item.href} disablePadding>
+              <ListItemButton
+                component={NextLink}
+                href={item.href}
+                selected={active}
+                onClick={() => setMobileOpen(false)}
+                sx={{
+                  mb: 0.25,
+                  minHeight: 46,
+                  position: "relative",
+                  color: "text.secondary",
+                  "& .MuiListItemIcon-root": { color: "text.secondary", transition: "color .16s ease" },
+                  "&:hover": { bgcolor: "action.hover" },
+                  "&.Mui-selected": {
+                    bgcolor: (th) => alpha(th.palette.primary.main, 0.1),
+                    color: "primary.dark",
+                    "& .MuiListItemIcon-root": { color: "primary.main" },
+                    "&:hover": { bgcolor: (th) => alpha(th.palette.primary.main, 0.16) },
+                    "&::before": {
+                      content: '""',
+                      position: "absolute",
+                      left: 4,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      width: 3,
+                      height: 20,
+                      borderRadius: 3,
+                      bgcolor: "primary.main",
+                    },
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{ fontWeight: active ? 700 : 600, fontSize: "0.92rem" }}
+                />
+              </ListItemButton>
+            </ListItem>
+          );
+        })}
       </List>
     </Box>
   );

@@ -9,9 +9,12 @@ import { getSuperAdminStats, listTenants } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
 import { dict } from "@/lib/i18n/dictionaries";
 import TenantsClient from "@/components/superadmin/TenantsClient";
+import { requireConsoleUser } from "@/lib/auth/guards";
+import { can } from "@/lib/auth/permissions";
 
 export default async function SuperAdminDashboard() {
   const t = (k: keyof typeof dict.en) => dict.en[k]; // Super Admin always English
+  const { role } = await requireConsoleUser();
   const [stats, tenants] = await Promise.all([getSuperAdminStats(), listTenants()]);
 
   return (
@@ -47,6 +50,7 @@ export default async function SuperAdminDashboard() {
       <TenantsClient
         tenants={tenants}
         rootDomain={process.env.ROOT_DOMAIN ?? "localhost:3000"}
+        canManage={can(role, "centers:manage")}
       />
     </Stack>
   );

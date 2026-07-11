@@ -38,7 +38,7 @@ async function main() {
     const res = await users.updateOne(
       { tenantId: null, role: "superadmin" },
       {
-        $set: { name, phone, passwordHash },
+        $set: { name, phone, passwordHash, active: true },
         $setOnInsert: { tenantId: null, role: "superadmin" },
       },
       { upsert: true }
