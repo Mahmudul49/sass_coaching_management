@@ -7,11 +7,11 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import StatCard from "@/components/ui/StatCard";
 import { getSuperAdminStats, listTenants } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
-import { getT } from "@/lib/i18n/server";
+import { dict } from "@/lib/i18n/dictionaries";
 import TenantsClient from "@/components/superadmin/TenantsClient";
 
 export default async function SuperAdminDashboard() {
-  const t = await getT();
+  const t = (k: keyof typeof dict.en) => dict.en[k]; // Super Admin always English
   const [stats, tenants] = await Promise.all([getSuperAdminStats(), listTenants()]);
 
   return (
@@ -21,24 +21,24 @@ export default async function SuperAdminDashboard() {
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} flexWrap="wrap" useFlexGap>
         <StatCard
           label={t("sa_total_active")}
-          value={toBnDigits(stats.totalActiveStudents)}
+          value={toBnDigits(stats.totalActiveStudents, "en")}
           icon={<GroupsIcon />}
         />
         <StatCard
           label={t("sa_total_centers")}
-          value={toBnDigits(stats.totalTenants)}
+          value={toBnDigits(stats.totalTenants, "en")}
           icon={<StorefrontIcon />}
           color="secondary.main"
         />
         <StatCard
           label={t("sa_active_centers")}
-          value={toBnDigits(stats.activeTenants)}
+          value={toBnDigits(stats.activeTenants, "en")}
           icon={<CheckCircleIcon />}
           color="success.main"
         />
         <StatCard
           label={t("sa_total_admins")}
-          value={toBnDigits(stats.totalAdmins)}
+          value={toBnDigits(stats.totalAdmins, "en")}
           icon={<PersonIcon />}
           color="#475569"
         />

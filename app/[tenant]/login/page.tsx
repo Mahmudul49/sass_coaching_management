@@ -22,7 +22,7 @@ export default async function TenantLoginPage({
     <LoginForm
       slug={slug}
       title={tenant.name}
-      subtitle="অ্যাডমিন লগইন করুন"
+      subtitle="Admin Login"
     />
   );
 }

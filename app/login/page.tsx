@@ -10,8 +10,8 @@ export default async function LoginPage() {
   return (
     <LoginForm
       slug=""
-      title="কোচিং ম্যানেজমেন্ট"
-      subtitle="সুপার অ্যাডমিন লগইন"
+      title="Coaching Manager"
+      subtitle="Super Admin Login"
     />
   );
 }

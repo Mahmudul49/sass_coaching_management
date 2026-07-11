@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "কোচিং ম্যানেজমেন্ট",
-  "short_name": "কোচিং",
-  "description": "কোচিং সেন্টার ব্যবস্থাপনা",
+  "name": "Coaching Manager",
+  "short_name": "Coaching Manager",
+  "description": "Coaching center management",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -10,7 +10,7 @@
   "orientation": "portrait-primary",
   "background_color": "#F4F6F3",
   "theme_color": "#0F7A6B",
-  "lang": "bn",
+  "lang": "en",
   "dir": "ltr",
   "categories": ["education", "productivity", "business"],
   "icons": [

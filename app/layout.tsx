@@ -15,11 +15,11 @@ const hindSiliguri = Hind_Siliguri({
 });
 
 export const metadata: Metadata = {
-  title: "কোচিং ম্যানেজমেন্ট",
-  description: "মাল্টি-টেন্যান্ট কোচিং সেন্টার ম্যানেজমেন্ট",
+  title: "Coaching Manager",
+  description: "Multi-tenant coaching center management",
   manifest: "/manifest.webmanifest",
-  applicationName: "কোচিং ম্যানেজমেন্ট",
-  appleWebApp: { capable: true, title: "কোচিং", statusBarStyle: "default" },
+  applicationName: "Coaching Manager",
+  appleWebApp: { capable: true, title: "Coaching Manager", statusBarStyle: "default" },
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },

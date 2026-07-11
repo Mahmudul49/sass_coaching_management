@@ -27,18 +27,18 @@ export async function createTenant(input: {
   const password = input.password ?? "";
   const slug = input.slug?.trim().toLowerCase();
 
-  if (!name) return { ok: false, error: "সেন্টারের নাম দিন।" };
-  if (!adminName) return { ok: false, error: "অ্যাডমিনের নাম দিন।" };
-  if (!phone) return { ok: false, error: "ফোন নম্বর দিন।" };
-  if (password.length < 6) return { ok: false, error: "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।" };
+  if (!name) return { ok: false, error: "Enter the center name." };
+  if (!adminName) return { ok: false, error: "Enter the admin name." };
+  if (!phone) return { ok: false, error: "Enter the phone number." };
+  if (password.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
   if (!slug || !SLUG_RE.test(slug) || RESERVED.has(slug)) {
-    return { ok: false, error: "সাবডোমেইন সঠিক নয় (শুধু ছোট হাতের অক্ষর, সংখ্যা ও hyphen)।" };
+    return { ok: false, error: "Invalid slug (lowercase letters, digits and hyphen only)." };
   }
 
   const db = await getDb();
 
   const existing = await db.collection(Collections.tenants).findOne({ slug });
-  if (existing) return { ok: false, error: "এই সাবডোমেইন আগে থেকেই ব্যবহৃত হচ্ছে।" };
+  if (existing) return { ok: false, error: "This slug is already in use." };
 
   const now = new Date();
   const tenantRes = await db.collection(Collections.tenants).insertOne({
@@ -64,7 +64,7 @@ export async function createTenant(input: {
   } catch {
     // Roll back the tenant if the admin (unique tenantId+phone) couldn't be made.
     await db.collection(Collections.tenants).deleteOne({ _id: tenantRes.insertedId });
-    return { ok: false, error: "অ্যাডমিন তৈরি করা যায়নি — ফোন নম্বরটি পুনরায় চেক করুন।" };
+    return { ok: false, error: "Could not create the admin — please re-check the phone number." };
   }
 
   invalidateTenant(slug);
@@ -91,14 +91,14 @@ export async function updateTenant(
   const slug = input.slug?.trim().toLowerCase();
   const password = input.password?.trim() ?? "";
 
-  if (!name) return { ok: false, error: "সেন্টারের নাম দিন।" };
-  if (!adminName) return { ok: false, error: "অ্যাডমিনের নাম দিন।" };
-  if (!phone) return { ok: false, error: "ফোন নম্বর দিন।" };
+  if (!name) return { ok: false, error: "Enter the center name." };
+  if (!adminName) return { ok: false, error: "Enter the admin name." };
+  if (!phone) return { ok: false, error: "Enter the phone number." };
   if (!slug || !SLUG_RE.test(slug) || RESERVED.has(slug)) {
-    return { ok: false, error: "সাইট (slug) সঠিক নয় (শুধু ছোট হাতের অক্ষর, সংখ্যা ও hyphen)।" };
+    return { ok: false, error: "Invalid slug (lowercase letters, digits and hyphen only)." };
   }
   if (password && password.length < 6) {
-    return { ok: false, error: "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।" };
+    return { ok: false, error: "Password must be at least 6 characters." };
   }
 
   const db = await getDb();
@@ -107,16 +107,16 @@ export async function updateTenant(
   try {
     _id = new ObjectId(tenantId);
   } catch {
-    return { ok: false, error: "ভুল আইডি।" };
+    return { ok: false, error: "Invalid ID." };
   }
 
   const tenant = await db.collection(Collections.tenants).findOne({ _id });
-  if (!tenant) return { ok: false, error: "সেন্টার পাওয়া যায়নি।" };
+  if (!tenant) return { ok: false, error: "Center not found." };
 
   // Slug must stay globally unique.
   if (slug !== tenant.slug) {
     const clash = await db.collection(Collections.tenants).findOne({ slug });
-    if (clash) return { ok: false, error: "এই সাইট (slug) আগে থেকেই ব্যবহৃত হচ্ছে।" };
+    if (clash) return { ok: false, error: "This slug is already in use." };
   }
 
   await db
@@ -148,10 +148,10 @@ export async function setTenantActive(
   try {
     _id = new ObjectId(tenantId);
   } catch {
-    return { ok: false, error: "ভুল আইডি।" };
+    return { ok: false, error: "Invalid ID." };
   }
   const tenant = await db.collection(Collections.tenants).findOne({ _id });
-  if (!tenant) return { ok: false, error: "সেন্টার পাওয়া যায়নি।" };
+  if (!tenant) return { ok: false, error: "Center not found." };
 
   await db.collection(Collections.tenants).updateOne({ _id }, { $set: { active } });
   invalidateTenant(tenant.slug as string);

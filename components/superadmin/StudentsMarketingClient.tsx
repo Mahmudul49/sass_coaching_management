@@ -22,6 +22,9 @@ import { printReportTable } from "@/lib/print";
 import type { MarketingStudentRow, TenantRow } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
 
+// Super Admin area is English-only.
+const num = (v: string | number) => toBnDigits(v, "en");
+
 export default function StudentsMarketingClient({
   rows,
   total,
@@ -81,20 +84,20 @@ export default function StudentsMarketingClient({
 
   function exportPdf() {
     printReportTable({
-      title: "মার্কেটিং — শিক্ষার্থী তথ্য",
-      subtitle: `${center ? tenants.find((t) => t.id === center)?.name : "সব সেন্টার"}${
-        classFilter ? " · ক্লাস: " + classFilter : ""
+      title: "Marketing — Student Data",
+      subtitle: `${center ? tenants.find((t) => t.id === center)?.name : "All centers"}${
+        classFilter ? " · Class: " + classFilter : ""
       }`,
-      meta: [`মোট: ${toBnDigits(shown.length)} জন`],
-      head: ["সেন্টার", "নাম", "রোল", "ফোন", "ক্লাস", "শাখা", "অবস্থা"],
+      meta: [`Total: ${num(shown.length)}`],
+      head: ["Center", "Name", "Roll", "Phone", "Class", "Section", "Status"],
       rows: shown.map((r) => [
         r.tenantName,
         r.name,
-        toBnDigits(r.roll),
+        num(r.roll),
         r.phone || "—",
         r.className,
         r.sectionName,
-        r.active ? "সক্রিয়" : "নিষ্ক্রিয়",
+        r.active ? "Active" : "Inactive",
       ]),
       numericFrom: 7,
     });
@@ -102,21 +105,21 @@ export default function StudentsMarketingClient({
 
   const columns = useMemo<GridColDef<MarketingStudentRow>[]>(
     () => [
-      { field: "tenantName", headerName: "সেন্টার", flex: 1, minWidth: 140 },
-      { field: "name", headerName: "নাম", flex: 1, minWidth: 130 },
-      { field: "roll", headerName: "রোল", width: 80 },
-      { field: "phone", headerName: "ফোন", width: 130 },
-      { field: "className", headerName: "ক্লাস", width: 110 },
-      { field: "sectionName", headerName: "শাখা", width: 90 },
+      { field: "tenantName", headerName: "Center", flex: 1, minWidth: 140 },
+      { field: "name", headerName: "Name", flex: 1, minWidth: 130 },
+      { field: "roll", headerName: "Roll", width: 80 },
+      { field: "phone", headerName: "Phone", width: 130 },
+      { field: "className", headerName: "Class", width: 110 },
+      { field: "sectionName", headerName: "Section", width: 90 },
       {
         field: "active",
-        headerName: "অবস্থা",
+        headerName: "Status",
         width: 100,
         renderCell: (p) =>
           p.row.active ? (
-            <Chip label="সক্রিয়" color="success" size="small" />
+            <Chip label="Active" color="success" size="small" />
           ) : (
-            <Chip label="নিষ্ক্রিয়" size="small" />
+            <Chip label="Inactive" size="small" />
           ),
       },
     ],
@@ -130,12 +133,11 @@ export default function StudentsMarketingClient({
       <Card sx={{ p: 2 }}>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            সকল সেন্টারের শিক্ষার্থীদের তথ্য খুঁজুন ও এক্সপোর্ট করুন — SMS, কল বা অন্য মার্কেটিং
-            কাজে ব্যবহার করুন।
+            Search and export students across all centers — use for SMS, calls or other marketing.
           </Typography>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2} flexWrap="wrap" useFlexGap>
             <TextField
-              label="খুঁজুন (নাম, ফোন, রোল)"
+              label="Search (name, phone, roll)"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && applyFilters()}
@@ -143,12 +145,12 @@ export default function StudentsMarketingClient({
             />
             <TextField
               select
-              label="সেন্টার"
+              label="Center"
               value={center}
               onChange={(e) => setCenter(e.target.value)}
               sx={{ minWidth: 180 }}
             >
-              <MenuItem value="">সব সেন্টার</MenuItem>
+              <MenuItem value="">All centers</MenuItem>
               {tenants.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
                   {t.name}
@@ -157,12 +159,12 @@ export default function StudentsMarketingClient({
             </TextField>
             <TextField
               select
-              label="ক্লাস"
+              label="Class"
               value={classFilter}
               onChange={(e) => setClassFilter(e.target.value)}
               sx={{ minWidth: 150 }}
             >
-              <MenuItem value="">সব ক্লাস</MenuItem>
+              <MenuItem value="">All classes</MenuItem>
               {classNames.map((c) => (
                 <MenuItem key={c} value={c}>
                   {c}
@@ -171,10 +173,10 @@ export default function StudentsMarketingClient({
             </TextField>
             <FormControlLabel
               control={<Checkbox checked={active} onChange={(e) => setActive(e.target.checked)} />}
-              label="শুধু সক্রিয়"
+              label="Active only"
             />
             <Button startIcon={<SearchIcon />} onClick={applyFilters} sx={{ alignSelf: "center" }}>
-              খুঁজুন
+              Search
             </Button>
           </Stack>
         </Stack>
@@ -190,8 +192,8 @@ export default function StudentsMarketingClient({
           gap={1}
         >
           <Typography variant="h6">
-            ফলাফল ({toBnDigits(shown.length)}
-            {truncated ? ` / ${toBnDigits(total)}` : ""})
+            Results ({num(shown.length)}
+            {truncated ? ` / ${num(total)}` : ""})
           </Typography>
           <Stack direction="row" spacing={1}>
             <Button startIcon={<DownloadIcon />} onClick={exportRows} disabled={shown.length === 0} variant="outlined">
@@ -205,8 +207,8 @@ export default function StudentsMarketingClient({
 
         {shown.length === 0 ? (
           <EmptyState
-            title="কোনো শিক্ষার্থী পাওয়া যায়নি"
-            description="অন্য কীওয়ার্ড, সেন্টার বা ক্লাস দিয়ে খুঁজুন।"
+            title="No students found"
+            description="Try a different keyword, center or class."
           />
         ) : (
           <ResponsiveTable
@@ -220,14 +222,14 @@ export default function StudentsMarketingClient({
                 subtitle={`${r.tenantName} · ${r.className} ${r.sectionName}`}
                 right={
                   r.active ? (
-                    <Chip label="সক্রিয়" color="success" size="small" />
+                    <Chip label="Active" color="success" size="small" />
                   ) : (
-                    <Chip label="নিষ্ক্রিয়" size="small" />
+                    <Chip label="Inactive" size="small" />
                   )
                 }
                 fields={[
-                  { label: "রোল", value: toBnDigits(r.roll) },
-                  { label: "ফোন", value: r.phone || "—" },
+                  { label: "Roll", value: num(r.roll) },
+                  { label: "Phone", value: r.phone || "—" },
                 ]}
               />
             )}
@@ -235,7 +237,7 @@ export default function StudentsMarketingClient({
         )}
         {truncated && (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-            প্রথম {toBnDigits(rows.length)} জন দেখানো হচ্ছে। আরও নির্দিষ্ট ফিল্টার ব্যবহার করুন।
+            Showing the first {num(rows.length)}. Use a more specific filter.
           </Typography>
         )}
       </Card>

@@ -64,7 +64,7 @@ export default function TenantsClient({
         field: "studentCount",
         headerName: t("nav_students"),
         width: 90,
-        valueFormatter: (v: number) => toBnDigits(v ?? 0),
+        valueFormatter: (v: number) => toBnDigits(v ?? 0, "en"),
       },
       {
         field: "active",
@@ -109,8 +109,8 @@ export default function TenantsClient({
   function toggle(row: TenantRow) {
     startTransition(async () => {
       const res = await setTenantActive(row.id, !row.active);
-      if (res.ok) toast.success("আপডেট হয়েছে।");
-      else toast.error(res.error ?? "সমস্যা হয়েছে।");
+      if (res.ok) toast.success("Updated.");
+      else toast.error(res.error ?? "Something went wrong.");
     });
   }
 
@@ -161,7 +161,7 @@ export default function TenantsClient({
               fields={[
                 { label: t("sa_admin"), value: row.adminName },
                 { label: t("st_phone"), value: row.adminPhone },
-                { label: t("nav_students"), value: toBnDigits(row.studentCount ?? 0) },
+                { label: t("nav_students"), value: toBnDigits(row.studentCount ?? 0, "en") },
               ]}
               actions={[
                 {
@@ -239,9 +239,9 @@ function EditTenantDialog({
     start(async () => {
       const res = await updateTenant(tenant.id, form);
       if (res.ok) {
-        toast.success("সেন্টার আপডেট হয়েছে।");
+        toast.success("Center updated.");
         onClose();
-      } else setError(res.error ?? "সমস্যা হয়েছে।");
+      } else setError(res.error ?? "Something went wrong.");
     });
   }
 
@@ -250,41 +250,41 @@ function EditTenantDialog({
       open={!!tenant}
       onClose={onClose}
       disableClose={pending}
-      title="সেন্টার সম্পাদনা"
+      title="Edit Center"
       actions={
         <>
           <Button variant="text" color="inherit" onClick={onClose} disabled={pending}>
-            বাতিল
+            Cancel
           </Button>
           <Button onClick={submit} disabled={pending}>
-            {pending ? "সংরক্ষণ..." : "সংরক্ষণ"}
+            {pending ? "Saving..." : "Save"}
           </Button>
         </>
       }
     >
         <Stack spacing={2.5}>
           {error && <Alert severity="error">{error}</Alert>}
-          <TextField label="সেন্টার *" value={form.name} onChange={set("name")} />
+          <TextField label="Center *" value={form.name} onChange={set("name")} />
           <TextField
-            label="সাইট (slug) *"
+            label="Site (slug) *"
             value={form.slug}
             onChange={set("slug")}
             InputProps={{ startAdornment: <InputAdornment position="start">{rootDomain}/</InputAdornment> }}
-            helperText="সাইটের ঠিকানা পরিবর্তন হবে"
+            helperText="The site address will change"
           />
-          <TextField label="অ্যাডমিন *" value={form.adminName} onChange={set("adminName")} />
+          <TextField label="Admin *" value={form.adminName} onChange={set("adminName")} />
           <TextField
-            label="ফোন *"
+            label="Phone *"
             value={form.phone}
             onChange={set("phone")}
             inputProps={{ inputMode: "tel" }}
           />
           <TextField
-            label="নতুন পাসওয়ার্ড (ঐচ্ছিক)"
+            label="New password (optional)"
             type="password"
             value={form.password}
             onChange={set("password")}
-            helperText="খালি রাখলে পাসওয়ার্ড অপরিবর্তিত থাকবে"
+            helperText="Leave blank to keep the password unchanged"
             autoComplete="new-password"
           />
         </Stack>
@@ -320,11 +320,11 @@ function CreateTenantDialog({
     startTransition(async () => {
       const res = await createTenant(form);
       if (res.ok) {
-        toast.success("সেন্টার তৈরি হয়েছে।");
+        toast.success("Center created.");
         setForm({ name: "", adminName: "", phone: "", password: "", slug: "" });
         onClose();
       } else {
-        setError(res.error ?? "সমস্যা হয়েছে।");
+        setError(res.error ?? "Something went wrong.");
       }
     });
   }
@@ -334,34 +334,34 @@ function CreateTenantDialog({
       open={open}
       onClose={onClose}
       disableClose={pending}
-      title="নতুন সেন্টার / অ্যাডমিন"
+      title="New Center / Admin"
       actions={
         <>
           <Button color="inherit" variant="text" onClick={onClose} disabled={pending}>
-            বাতিল
+            Cancel
           </Button>
           <Button onClick={submit} disabled={pending}>
-            {pending ? "তৈরি হচ্ছে..." : "তৈরি করুন"}
+            {pending ? "Creating..." : "Create"}
           </Button>
         </>
       }
     >
         <Stack spacing={2.5}>
           {error && <Alert severity="error">{error}</Alert>}
-          <TextField label="সেন্টারের নাম *" value={form.name} onChange={set("name")} />
-          <TextField label="অ্যাডমিনের নাম *" value={form.adminName} onChange={set("adminName")} />
+          <TextField label="Center name *" value={form.name} onChange={set("name")} />
+          <TextField label="Admin name *" value={form.adminName} onChange={set("adminName")} />
           <TextField
-            label="ফোন নম্বর * (লগইন)"
+            label="Phone number * (login)"
             value={form.phone}
             onChange={set("phone")}
             inputProps={{ inputMode: "tel" }}
           />
           <TextField
-            label="পাসওয়ার্ড *"
+            label="Password *"
             type="password"
             value={form.password}
             onChange={set("password")}
-            helperText="কমপক্ষে ৬ অক্ষর"
+            helperText="At least 6 characters"
           />
           <TextField
             label="URL Slug *"
@@ -372,7 +372,7 @@ function CreateTenantDialog({
                 <InputAdornment position="start">{rootDomain}/</InputAdornment>
               ),
             }}
-            helperText="শুধু ছোট হাতের অক্ষর, সংখ্যা ও hyphen"
+            helperText="Lowercase letters, digits and hyphen only"
           />
         </Stack>
     </ResponsiveDialog>

@@ -16,7 +16,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" size="large" fullWidth disabled={pending}>
-      {pending ? "অপেক্ষা করুন..." : "লগইন"}
+      {pending ? "Please wait..." : "Login"}
     </Button>
   );
 }
@@ -71,7 +71,7 @@ export default function LoginForm({
               {state.error && <Alert severity="error">{state.error}</Alert>}
               <TextField
                 name="phone"
-                label="ফোন নম্বর"
+                label="Phone number"
                 type="tel"
                 autoComplete="username"
                 required
@@ -79,7 +79,7 @@ export default function LoginForm({
               />
               <TextField
                 name="password"
-                label="পাসওয়ার্ড"
+                label="Password"
                 type="password"
                 autoComplete="current-password"
                 required

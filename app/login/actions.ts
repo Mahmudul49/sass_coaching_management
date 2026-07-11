@@ -19,7 +19,7 @@ export async function loginAction(
   const slug = String(formData.get("slug") ?? "").trim();
 
   if (!phone || !password) {
-    return { error: "ফোন নম্বর ও পাসওয়ার্ড দিন।" };
+    return { error: "Enter phone number and password." };
   }
 
   const redirectTo = slug ? tenantAdminPath(slug) : "/superadmin";
@@ -28,7 +28,7 @@ export async function loginAction(
     await signIn("credentials", { phone, password, slug, redirectTo });
   } catch (error) {
     if (error instanceof AuthError) {
-      return { error: "ফোন নম্বর বা পাসওয়ার্ড সঠিক নয়।" };
+      return { error: "Phone number or password is incorrect." };
     }
     throw error;
   }

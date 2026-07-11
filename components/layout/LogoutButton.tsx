@@ -5,8 +5,10 @@ import IconButton from "@mui/material/IconButton";
 import LogoutIcon from "@mui/icons-material/Logout";
 import Tooltip from "@mui/material/Tooltip";
 import { logoutAction } from "@/lib/auth/actions";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 export default function LogoutButton({ iconOnly = false }: { iconOnly?: boolean }) {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
   const handle = () => {
     setLoading(true);
@@ -16,7 +18,7 @@ export default function LogoutButton({ iconOnly = false }: { iconOnly?: boolean 
 
   if (iconOnly) {
     return (
-      <Tooltip title="লগআউট">
+      <Tooltip title={t("logout")}>
         <IconButton color="inherit" onClick={handle} disabled={loading}>
           <LogoutIcon />
         </IconButton>
@@ -31,7 +33,7 @@ export default function LogoutButton({ iconOnly = false }: { iconOnly?: boolean 
       onClick={handle}
       disabled={loading}
     >
-      লগআউট
+      {t("logout")}
     </Button>
   );
 }

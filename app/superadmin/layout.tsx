@@ -9,19 +9,20 @@ import { requireSuperAdmin } from "@/lib/auth/guards";
 import LogoutButton from "@/components/layout/LogoutButton";
 import LanguageToggle from "@/components/layout/LanguageToggle";
 import SuperAdminNav from "@/components/superadmin/SuperAdminNav";
-import { getT } from "@/lib/i18n/server";
+import { I18nProvider } from "@/components/providers/I18nProvider";
+import { dict } from "@/lib/i18n/dictionaries";
 
 export default async function SuperAdminLayout({ children }: { children: ReactNode }) {
   await requireSuperAdmin(); // redirects to /login or 403s
-  const t = await getT();
-
+  // Super Admin area always renders in English.
   return (
+    <I18nProvider initialLocale="en">
     <Box sx={{ minHeight: "100dvh", bgcolor: "background.default" }}>
       <AppBar position="sticky" color="primary">
         <Toolbar>
           <AdminPanelSettingsIcon sx={{ mr: 1 }} />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            {t("superadmin")}
+            {dict.en.superadmin}
           </Typography>
           <LanguageToggle />
           <LogoutButton />
@@ -32,5 +33,6 @@ export default async function SuperAdminLayout({ children }: { children: ReactNo
         {children}
       </Container>
     </Box>
+    </I18nProvider>
   );
 }
