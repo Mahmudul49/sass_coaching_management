@@ -149,6 +149,23 @@ const baseTheme = createTheme({
           backgroundClip: "content-box",
         },
         "*::-webkit-scrollbar-thumb:hover": { backgroundColor: alpha(T.ink700, 0.34) },
+        // WCAG: a clearly visible keyboard focus ring on every interactive element
+        // (only when navigating by keyboard, never on mouse click).
+        "a:focus-visible, button:focus-visible, [role='button']:focus-visible, .MuiButtonBase-root:focus-visible, [tabindex]:focus-visible":
+          {
+            outline: `2px solid ${T.primary}`,
+            outlineOffset: 2,
+            borderRadius: 6,
+          },
+        // Respect users who prefer less motion — collapse animations/transitions.
+        "@media (prefers-reduced-motion: reduce)": {
+          "*, *::before, *::after": {
+            animationDuration: "0.01ms !important",
+            animationIterationCount: "1 !important",
+            transitionDuration: "0.01ms !important",
+            scrollBehavior: "auto !important",
+          },
+        },
       },
     },
 

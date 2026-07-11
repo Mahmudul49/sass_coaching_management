@@ -1,7 +1,12 @@
 "use client";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import Snackbar from "@mui/material/Snackbar";
+import Slide, { type SlideProps } from "@mui/material/Slide";
 import Alert, { type AlertColor } from "@mui/material/Alert";
+
+function SlideUp(props: SlideProps) {
+  return <Slide {...props} direction="up" />;
+}
 
 /**
  * Lightweight global toast (MUI Snackbar). Every action calls `toast.success`
@@ -43,12 +48,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         autoHideDuration={4000}
         onClose={() => setOpen(false)}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        TransitionComponent={SlideUp}
+        sx={{ bottom: { xs: 80, md: 24 } }}
       >
         <Alert
           onClose={() => setOpen(false)}
           severity={severity}
           variant="filled"
-          sx={{ width: "100%" }}
+          sx={{
+            width: "100%",
+            alignItems: "center",
+            borderRadius: 2.5,
+            fontWeight: 600,
+            boxShadow: "0 12px 32px -10px rgba(17,34,29,0.4)",
+            "& .MuiAlert-icon": { alignItems: "center" },
+          }}
         >
           {message}
         </Alert>

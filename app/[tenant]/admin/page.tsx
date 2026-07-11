@@ -8,6 +8,8 @@ import MoneyOffIcon from "@mui/icons-material/MoneyOff";
 import TodayIcon from "@mui/icons-material/Today";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import PageHeader from "@/components/ui/PageHeader";
 import { requireAdmin } from "@/lib/auth/guards";
 import {
   getSetupStatus,
@@ -31,7 +33,7 @@ import { taka, currentMonth, currentYear, monthName, toBnDigits } from "@/lib/fo
 
 export default async function AdminDashboard({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params;
-  const { db } = await requireAdmin(tenant);
+  const { db, tenant: center } = await requireAdmin(tenant);
   // The dashboard is always rendered in English (labels, numbers, currency and
   // month names), independent of the app-wide language toggle. `t` reads the
   // English catalogue directly and the whole subtree is wrapped in an English
@@ -67,7 +69,11 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
   return (
     <I18nProvider initialLocale="en">
     <Stack spacing={2.5}>
-      <Typography variant="h5">{t("nav_dashboard")}</Typography>
+      <PageHeader
+        icon={<DashboardIcon />}
+        title={t("nav_dashboard")}
+        subtitle={`${center.name} · ${monthName(month, "en")} ${year}`}
+      />
 
       <QuickActions base={tenantAdminPath(tenant)} />
 
