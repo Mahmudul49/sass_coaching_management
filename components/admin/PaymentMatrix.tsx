@@ -26,6 +26,7 @@ import SavingsIcon from "@mui/icons-material/Savings";
 import StatCard from "@/components/ui/StatCard";
 import DataCard from "@/components/ui/DataCard";
 import EmptyState from "@/components/ui/EmptyState";
+import OrientationToggle, { type Orientation } from "@/components/ui/OrientationToggle";
 import { exportAoa } from "@/lib/excel";
 import { brandHeader, dataTable, docFooter, openPrintWindow, renderPrintDoc } from "@/lib/print/document";
 import type { DueRow } from "@/lib/admin/queries";
@@ -77,6 +78,8 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "className", dir: "asc" });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  // Wide month grid prints best on landscape by default; user can switch.
+  const [orientation, setOrientation] = useState<Orientation>("landscape");
 
   const { months, students } = useMemo(() => {
     const monthSet = new Map<string, { year: number; month: number }>();
@@ -276,7 +279,7 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
     ];
     const doc = renderPrintDoc({
       title: "Payment Matrix",
-      orientation: "portrait",
+      orientation,
       body: `
         ${brandHeader({ centerName, eyebrow: "Finance", subtitle: "Payment Matrix" })}
         ${dataTable({ head, rows: body, numericFrom: 3, footer })}
@@ -340,6 +343,7 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
           <MenuItem value="advance">Advance</MenuItem>
         </TextField>
         <Box sx={{ flex: 1 }} />
+        <OrientationToggle value={orientation} onChange={setOrientation} />
         <Button startIcon={<DownloadIcon />} variant="outlined" onClick={exportExcel} disabled={totals.count === 0}>
           Excel
         </Button>

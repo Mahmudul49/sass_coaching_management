@@ -55,8 +55,10 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-/** One luxury A4-landscape transcript page. */
-function transcriptPage(d: TranscriptData): string {
+export type TranscriptOrientation = "portrait" | "landscape";
+
+/** One luxury A4 transcript page (landscape by default, portrait on request). */
+function transcriptPage(d: TranscriptData, orientation: TranscriptOrientation): string {
   const initial = escapeHtml((d.centerName || "?").trim().charAt(0).toUpperCase());
 
   const gradingRows = d.grading
@@ -83,7 +85,7 @@ function transcriptPage(d: TranscriptData): string {
     )
     .join("");
 
-  return `<section class="sheet">
+  return `<section class="sheet ${orientation}">
     <div class="frame">
       <span class="corner tl"></span><span class="corner tr"></span>
       <span class="corner bl"></span><span class="corner br"></span>
@@ -170,7 +172,7 @@ function transcriptPage(d: TranscriptData): string {
   </section>`;
 }
 
-function transcriptDoc(pages: string): string {
+function transcriptDoc(pages: string, orientation: TranscriptOrientation): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>Transcript</title>
 <style>
@@ -188,9 +190,10 @@ function transcriptDoc(pages: string): string {
   *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{font-family:var(--sans);margin:0;color:var(--ink);background:#dfe3e0}
 
-  /* A4 landscape: 297mm x 210mm — one page per student. */
-  .sheet{width:297mm;height:210mm;padding:6mm;margin:0 auto;page-break-after:always;overflow:hidden;
-    background:var(--paper)}
+  /* A4, one page per student. Orientation class sizes the sheet. */
+  .sheet{padding:6mm;margin:0 auto;page-break-after:always;overflow:hidden;background:var(--paper)}
+  .sheet.landscape{width:297mm;height:210mm}
+  .sheet.portrait{width:210mm;height:297mm}
   .frame{position:relative;height:100%;display:flex;flex-direction:column;overflow:hidden;
     padding:7mm 11mm 6mm;
     border:1.5px solid var(--teal);
@@ -300,8 +303,16 @@ function transcriptDoc(pages: string): string {
 
   .toolbar{position:fixed;top:10px;right:10px;z-index:99}
   .toolbar button{background:var(--teal);color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:14px;cursor:pointer;font-family:var(--sans);font-weight:600}
+  /* Portrait reflow: the sheet is taller than wide, so stack the marks table
+     over a horizontal summary strip (medallion · stats · grading key). */
+  .sheet.portrait .body{flex-direction:column;gap:14px}
+  .sheet.portrait .marks{flex:none;align-self:stretch;width:100%}
+  .sheet.portrait .side{width:100%;flex-direction:row;gap:14px;align-items:stretch}
+  .sheet.portrait .side>*{flex:1;min-width:0}
+  .sheet.portrait .medallion{align-items:center}
+
   @media print{.toolbar{display:none}body{background:#fff}.sheet{margin:0;padding:0}}
-  @page{size:A4 landscape;margin:0}
+  @page{size:A4 ${orientation};margin:0}
 </style></head><body>
   <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
   ${pages}
@@ -318,8 +329,11 @@ function transcriptDoc(pages: string): string {
 }
 
 /** Build the full printable HTML document for one or more transcripts. */
-export function buildTranscriptDoc(list: TranscriptData[]): string {
-  return transcriptDoc(list.map(transcriptPage).join(""));
+export function buildTranscriptDoc(
+  list: TranscriptData[],
+  orientation: TranscriptOrientation = "landscape"
+): string {
+  return transcriptDoc(list.map((d) => transcriptPage(d, orientation)).join(""), orientation);
 }
 
 function openDoc(html: string) {
@@ -332,12 +346,12 @@ function openDoc(html: string) {
 }
 
 /** Print a single student's transcript. */
-export function printTranscript(d: TranscriptData) {
-  openDoc(buildTranscriptDoc([d]));
+export function printTranscript(d: TranscriptData, orientation: TranscriptOrientation = "landscape") {
+  openDoc(buildTranscriptDoc([d], orientation));
 }
 
 /** Print one multi-page document (one A4 page per student) for a bulk export. */
-export function printTranscripts(list: TranscriptData[]) {
+export function printTranscripts(list: TranscriptData[], orientation: TranscriptOrientation = "landscape") {
   if (list.length === 0) return;
-  openDoc(buildTranscriptDoc(list));
+  openDoc(buildTranscriptDoc(list, orientation));
 }

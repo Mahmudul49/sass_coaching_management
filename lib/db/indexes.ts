@@ -53,6 +53,13 @@ export async function ensureIndexes(db: Db): Promise<void> {
     db.collection(Collections.payments).createIndex({ tenantId: 1, studentId: 1 }),
     // Report range + status filter (year*100+month scan within a tenant/status).
     db.collection(Collections.payments).createIndex({ tenantId: 1, status: 1, year: 1, month: 1 }),
+    // Dashboard: the per-month collection aggregation matches {tenantId, year}
+    // and groups by month. No class/status prefix, so the indexes above don't
+    // serve it — this one turns a full tenant scan into an index scan.
+    db.collection(Collections.payments).createIndex({ tenantId: 1, year: 1, month: 1 }),
+    // Dashboard: "collected today" matches {tenantId, paidAt} on a date window;
+    // also serves any recent-payments view. paidAt is optional, so index sparsely.
+    db.collection(Collections.payments).createIndex({ tenantId: 1, paidAt: -1 }, { sparse: true }),
     // One payment record per student per month/year — upsert target.
     db
       .collection(Collections.payments)

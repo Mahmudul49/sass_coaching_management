@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Card from "@mui/material/Card";
 import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
@@ -15,6 +15,7 @@ import TableChartIcon from "@mui/icons-material/TableChart";
 import { type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import DataCard from "@/components/ui/DataCard";
+import OrientationToggle, { type Orientation } from "@/components/ui/OrientationToggle";
 import { exportToExcel } from "@/lib/excel";
 import { printReportTable } from "@/lib/print";
 import { printTranscript, printTranscripts, type TranscriptData } from "@/lib/results/transcript";
@@ -42,6 +43,9 @@ export default function TranscriptClient({
   // Subject columns come from the exam's subject list (identical for every row).
   const subjectNames = useMemo(() => rows[0]?.subjects.map((s) => s.name) ?? [], [rows]);
 
+  // Transcript page orientation (drives the on-demand A4 print document).
+  const [orientation, setOrientation] = useState<Orientation>("landscape");
+
   const toData = (r: TranscriptRow): TranscriptData => ({
     centerName,
     title,
@@ -62,8 +66,8 @@ export default function TranscriptClient({
     classCount: r.classCount,
   });
 
-  const one = (r: TranscriptRow) => printTranscript(toData(r));
-  const all = () => printTranscripts(rows.map(toData));
+  const one = (r: TranscriptRow) => printTranscript(toData(r), orientation);
+  const all = () => printTranscripts(rows.map(toData), orientation);
 
   const columns = useMemo<GridColDef<TranscriptRow>[]>(() => {
     const head: GridColDef<TranscriptRow>[] = [
@@ -154,6 +158,7 @@ export default function TranscriptClient({
       subtitle: title,
       meta: [examName],
       head,
+      orientation, // shares the toolbar toggle; wide subject grid reads better landscape
       numericFrom: 3, // subjects onward are right-aligned
       rows: rows.map((r) => [
         r.rankClass,
@@ -179,7 +184,8 @@ export default function TranscriptClient({
           sx={{ mb: 1.5 }}
         >
           <Typography variant="h6">Students ({rows.length})</Typography>
-          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+            <OrientationToggle value={orientation} onChange={setOrientation} />
             <Button size="small" variant="outlined" startIcon={<TableChartIcon />} onClick={exportExcel} disabled={rows.length === 0}>
               Excel
             </Button>

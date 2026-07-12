@@ -13,8 +13,9 @@ export function printReportTable(opts: {
   head: string[];
   rows: (string | number)[][];
   numericFrom?: number; // right-align columns from this index
+  orientation?: "portrait" | "landscape"; // wide reports read better landscape
 }) {
-  const { title, subtitle, meta = [], head, rows, numericFrom = head.length } = opts;
+  const { title, subtitle, meta = [], head, rows, numericFrom = head.length, orientation = "portrait" } = opts;
 
   const metaLine = meta.length
     ? `<div class="report-meta">${meta.map((m) => `<span>${escapeHtml(m)}</span>`).join("")}</div>`
@@ -33,6 +34,6 @@ export function printReportTable(opts: {
     table.data thead th{position:sticky;top:0}
   `;
 
-  const html = renderPrintDoc({ title: subtitle || title, body, orientation: "portrait", extraCss });
-  openPrintWindow(html, 1000, 760);
+  const html = renderPrintDoc({ title: subtitle || title, body, orientation, extraCss });
+  openPrintWindow(html, orientation === "landscape" ? 1180 : 1000, 760);
 }
