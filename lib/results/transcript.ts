@@ -1,11 +1,14 @@
 /**
- * On-demand academic transcript (report card) — browser-print, one A4 page per
- * student, same approach as `lib/print.ts` (open styled HTML, user Saves as PDF).
- * Nothing is precomputed or stored: transcripts are built in the browser only
- * for the students the admin picks. "Premium" report-card layout: ornamental
- * frame + watermark seal, a grading key, a subject marks table (with each
- * subject's class-highest), grand total + percentage + GPA, merit position in
- * class, and a single Authorised Signature.
+ * On-demand academic transcript (report card) — browser-print, ONE A4 LANDSCAPE
+ * page per student. Opens a self-contained styled document (the user Saves as
+ * PDF from the print dialog); nothing is precomputed or stored server-side.
+ *
+ * Aesthetic: refined institutional / luxury diploma — warm ivory paper, an
+ * engraved double frame with corner diamonds, a Playfair Display masthead paired
+ * with Archivo, gold hairlines, a hero GPA medallion and a wax-seal signature.
+ * `print-color-adjust: exact` keeps the teal/gold fills when printed, and the
+ * document waits for webfonts (`document.fonts.ready`) before invoking print so
+ * the type is never captured mid-swap.
  */
 
 export type TranscriptSubjectLine = {
@@ -52,14 +55,14 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-/** One premium A4-portrait transcript page. */
+/** One luxury A4-landscape transcript page. */
 function transcriptPage(d: TranscriptData): string {
   const initial = escapeHtml((d.centerName || "?").trim().charAt(0).toUpperCase());
 
   const gradingRows = d.grading
     .map(
       (g) =>
-        `<tr><td>${escapeHtml(g.range)}</td><td>${escapeHtml(g.grade)}</td><td>${g.point.toFixed(
+        `<tr><td>${escapeHtml(g.range)}</td><td class="b">${escapeHtml(g.grade)}</td><td>${g.point.toFixed(
           2
         )}</td></tr>`
     )
@@ -68,88 +71,98 @@ function transcriptPage(d: TranscriptData): string {
   const subjectRows = d.subjects
     .map(
       (s) => `<tr>
-        <td class="c">${s.sl}</td>
+        <td class="c dim">${String(s.sl).padStart(2, "0")}</td>
         <td class="subj">${escapeHtml(s.name)}</td>
-        <td class="c">${s.fullMarks}</td>
-        <td class="c">${s.obtained}</td>
-        <td class="c">${s.obtained}</td>
-        <td class="c">${s.highest}</td>
-        <td class="c">${s.point.toFixed(2)}</td>
-        <td class="c b">${escapeHtml(s.grade)}</td>
+        <td class="c n">${s.fullMarks}</td>
+        <td class="c n">${s.obtained}</td>
+        <td class="c n strong">${s.obtained}</td>
+        <td class="c n">${s.highest}</td>
+        <td class="c n">${s.point.toFixed(2)}</td>
+        <td class="c"><span class="gpill">${escapeHtml(s.grade)}</span></td>
       </tr>`
     )
     .join("");
 
   return `<section class="sheet">
     <div class="frame">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
       <div class="watermark">${initial}</div>
 
-      <header class="top">
-        <div class="crest">${initial}</div>
+      <header class="masthead">
+        <div class="crest"><span class="crest-star">&#10022;</span><span class="crest-i">${initial}</span></div>
         <div class="titles">
-          <div class="eyebrow">Official Academic Record</div>
+          <div class="eyebrow">Official Academic Transcript</div>
           <h1>${escapeHtml(d.centerName)}</h1>
-          <div class="rule"><span></span><i>&#10022;</i><span></span></div>
-          <h2>${escapeHtml(d.title)}</h2>
+          <div class="flourish"><span></span><i>&#10070;</i><span></span></div>
+          <div class="subtitle">${escapeHtml(d.title)}</div>
         </div>
-        <table class="grading">
-          <thead>
-            <tr><th colspan="3">Grading Scale</th></tr>
-            <tr><th>Marks</th><th>Grade</th><th>Point</th></tr>
-          </thead>
-          <tbody>${gradingRows}</tbody>
-        </table>
+        <div class="ribbon ${d.passed ? "pass" : "fail"}">
+          <span class="ribbon-k">Result</span>
+          <span class="ribbon-v">${d.passed ? "Passed" : "Not Passed"}</span>
+        </div>
       </header>
 
-      <div class="whoband">
-        <div><label>Name</label><b>${escapeHtml(d.studentName)}</b></div>
-        <div><label>Class</label><b>${escapeHtml(d.className)}</b></div>
-        <div><label>Section</label><b>${escapeHtml(d.sectionName)}</b></div>
-        <div><label>Roll</label><b>${escapeHtml(d.roll)}</b></div>
+      <div class="identity">
+        <div class="idf grow"><label>Name of Student</label><b>${escapeHtml(d.studentName)}</b></div>
+        <div class="idf"><label>Class</label><b>${escapeHtml(d.className)}</b></div>
+        <div class="idf"><label>Section</label><b>${escapeHtml(d.sectionName)}</b></div>
+        <div class="idf"><label>Roll No.</label><b>${escapeHtml(d.roll)}</b></div>
+        <div class="idf grow"><label>Examination</label><b>${escapeHtml(d.examName)}</b></div>
       </div>
-      <div class="examline">Examination : <b>${escapeHtml(d.examName)}</b></div>
 
       <div class="body">
         <table class="marks">
           <thead>
             <tr>
-              <th>SL</th><th class="subj">Name of Subjects</th><th>Full<br>Marks</th>
-              <th>Written</th><th>Total</th><th>Highest<br>Marks</th><th>Grade<br>Point</th><th>Letter<br>Grade</th>
+              <th>SL</th><th class="subj">Name of Subjects</th><th>Full</th>
+              <th>Written</th><th>Total</th><th>Highest</th><th>Point</th><th>Grade</th>
             </tr>
           </thead>
           <tbody>${subjectRows}</tbody>
           <tfoot>
             <tr class="grand">
-              <td colspan="3">Grand Total</td>
-              <td class="c" colspan="3">${d.grandTotal} / ${d.fullTotal}</td>
-              <td class="c" colspan="2">GPA ${d.gpa.toFixed(2)}</td>
+              <td colspan="4">Grand Total</td>
+              <td class="c n">${d.grandTotal}</td>
+              <td class="c dim">/ ${d.fullTotal}</td>
+              <td class="c" colspan="2">GPA&nbsp;<b>${d.gpa.toFixed(2)}</b></td>
             </tr>
           </tfoot>
         </table>
 
-        <aside class="panel">
-          <div class="gpaBadge">
-            <span class="lbl">GPA</span>
-            <span class="val">${d.gpa.toFixed(2)}</span>
-            <span class="grade">${escapeHtml(d.overallGrade)}</span>
+        <aside class="side">
+          <div class="medallion">
+            <div class="medal-ring">
+              <span class="medal-k">Grade Point Average</span>
+              <span class="medal-v">${d.gpa.toFixed(2)}</span>
+              <span class="medal-g">${escapeHtml(d.overallGrade)}</span>
+            </div>
           </div>
-          <table class="info">
-            <tr><td>Total Marks</td><td>${d.grandTotal} / ${d.fullTotal}</td></tr>
-            <tr><td>Percentage</td><td>${d.percentage}%</td></tr>
-            <tr><td>Merit Position</td><td>${ordinal(d.rankClass)}</td></tr>
-            <tr><td>Out of</td><td>${d.classCount}</td></tr>
+
+          <div class="statlist">
+            <div><label>Total Marks</label><b>${d.grandTotal} / ${d.fullTotal}</b></div>
+            <div><label>Percentage</label><b>${d.percentage}%</b></div>
+            <div><label>Merit Position</label><b>${ordinal(d.rankClass)}</b></div>
+            <div><label>Out of</label><b>${d.classCount}</b></div>
+          </div>
+
+          <table class="grading">
+            <thead><tr><th>Marks</th><th>Grade</th><th>Point</th></tr></thead>
+            <tbody>${gradingRows}</tbody>
           </table>
-          <div class="result ${d.passed ? "pass" : "fail"}">${d.passed ? "PASSED" : "NOT PASSED"}</div>
         </aside>
       </div>
 
       <footer class="foot">
-        <div class="issued">Issued on ${escapeHtml(
-          new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-        )}</div>
+        <div class="fineprint">
+          <div class="fp-title">Computer-generated academic record</div>
+          <div>Issued on ${escapeHtml(
+            new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })
+          )}</div>
+        </div>
         <div class="sig">
-          <div class="seal">${initial}</div>
-          <div class="line"></div>
+          <div class="wax">${initial}</div>
+          <div class="sig-line"></div>
           <span>Authorised Signature</span>
         </div>
       </footer>
@@ -161,83 +174,146 @@ function transcriptDoc(pages: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>Transcript</title>
 <style>
-  *{box-sizing:border-box}
-  body{font-family:'Hind Siliguri','Noto Sans Bengali',system-ui,sans-serif;margin:0;color:#1a2b26;background:#e9ecea}
-  .serif{font-family:Georgia,'Times New Roman',serif}
-  .sheet{width:210mm;min-height:296mm;padding:8mm;background:#fff;margin:0 auto;page-break-after:always}
-  .frame{position:relative;height:100%;min-height:280mm;border:2px solid #0F7A6B;outline:1px solid #C9A227;outline-offset:4px;
-    padding:14mm 12mm 10mm;display:flex;flex-direction:column;overflow:hidden;
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Archivo:wght@400;500;600;700&display=swap');
+
+  :root{
+    --ink:#1b2a25; --muted:#657771;
+    --teal:#0F7A6B; --teal-d:#0A5A4E; --teal-dd:#073f37;
+    --gold:#B0872B; --gold-l:#E7D6A2; --gold-soft:#f3ecd6;
+    --paper:#FCFBF6; --line:#dbe0da;
+    --display:'Playfair Display',Georgia,'Times New Roman',serif;
+    --script:'Cormorant Garamond',Georgia,serif;
+    --sans:'Archivo','Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:var(--sans);margin:0;color:var(--ink);background:#dfe3e0}
+
+  /* A4 landscape: 297mm x 210mm — one page per student. */
+  .sheet{width:297mm;height:210mm;padding:6mm;margin:0 auto;page-break-after:always;overflow:hidden;
+    background:var(--paper)}
+  .frame{position:relative;height:100%;display:flex;flex-direction:column;overflow:hidden;
+    padding:7mm 11mm 6mm;
+    border:1.5px solid var(--teal);
+    box-shadow:inset 0 0 0 4px var(--paper), inset 0 0 0 5px var(--gold);
     background:
-      radial-gradient(120% 60% at 50% -10%, rgba(15,122,107,.06), transparent 60%),
-      radial-gradient(90% 50% at 50% 110%, rgba(201,162,39,.06), transparent 60%)}
-  .watermark{position:absolute;inset:0;display:grid;place-items:center;font-family:Georgia,serif;font-size:340px;font-weight:800;
-    color:rgba(15,122,107,.045);pointer-events:none;user-select:none;z-index:0}
+      radial-gradient(150% 80% at 50% -25%, rgba(15,122,107,.055), transparent 62%),
+      radial-gradient(120% 60% at 50% 120%, rgba(176,135,43,.06), transparent 60%),
+      repeating-linear-gradient(45deg, rgba(176,135,43,.022) 0 1px, transparent 1px 11px),
+      repeating-linear-gradient(-45deg, rgba(15,122,107,.018) 0 1px, transparent 1px 11px),
+      var(--paper)}
   .frame>*{position:relative;z-index:1}
 
-  .top{display:flex;align-items:flex-start;gap:14px;border-bottom:2px solid #0F7A6B;padding-bottom:10px}
-  .crest{width:60px;height:60px;border-radius:50%;flex:none;display:grid;place-items:center;font-family:Georgia,serif;
-    font-weight:800;font-size:30px;color:#0A5A4E;background:radial-gradient(circle at 30% 30%,#fff,#e7f1ee);
-    border:2px solid #C9A227;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .corner{position:absolute;width:11px;height:11px;background:var(--gold);z-index:2;
+    transform:rotate(45deg);opacity:.85}
+  .corner.tl{top:7px;left:7px} .corner.tr{top:7px;right:7px}
+  .corner.bl{bottom:7px;left:7px} .corner.br{bottom:7px;right:7px}
+
+  .watermark{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--display);
+    font-size:330px;font-weight:900;color:rgba(15,122,107,.045);pointer-events:none;user-select:none;z-index:0}
+
+  /* ── Masthead ─────────────────────────────────────────── */
+  .masthead{display:flex;align-items:center;gap:18px;padding-bottom:9px;
+    border-bottom:2px solid var(--teal);position:relative}
+  .masthead::after{content:"";position:absolute;left:0;right:0;bottom:-4px;height:1px;background:var(--gold);opacity:.55}
+  .crest{width:64px;height:64px;border-radius:50%;flex:none;position:relative;display:grid;place-items:center;
+    background:radial-gradient(circle at 32% 28%,#fff,#e6efec);
+    border:2px solid var(--teal);box-shadow:0 0 0 3px var(--paper),0 0 0 4px var(--gold),0 3px 8px rgba(0,0,0,.14)}
+  .crest-i{font-family:var(--display);font-weight:800;font-size:30px;color:var(--teal-d);line-height:1}
+  .crest-star{position:absolute;top:5px;font-size:9px;color:var(--gold)}
   .titles{flex:1;text-align:center}
-  .eyebrow{font-size:9px;letter-spacing:.32em;text-transform:uppercase;color:#C9A227;font-weight:700}
-  .titles h1{font-family:Georgia,'Times New Roman',serif;margin:3px 0 0;font-size:25px;color:#0A5A4E;letter-spacing:.01em}
-  .titles h2{margin:4px 0 0;font-size:12.5px;font-weight:600;color:#425}
-  .rule{display:flex;align-items:center;justify-content:center;gap:8px;margin:4px auto 0;max-width:260px;color:#C9A227}
-  .rule span{height:1px;flex:1;background:linear-gradient(90deg,transparent,#C9A227,transparent)}
-  .rule i{font-style:normal;font-size:11px}
+  .eyebrow{font-family:var(--sans);font-size:9.5px;letter-spacing:.42em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-left:.42em}
+  .titles h1{font-family:var(--display);font-weight:800;margin:3px 0 0;font-size:29px;color:var(--teal-d);letter-spacing:.005em;line-height:1.04}
+  .flourish{display:flex;align-items:center;justify-content:center;gap:9px;margin:4px auto 0;max-width:300px;color:var(--gold)}
+  .flourish span{height:1px;flex:1;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+  .flourish i{font-style:normal;font-size:11px}
+  .subtitle{font-family:var(--script);font-style:italic;font-size:16px;color:#3d4d47;margin-top:3px;font-weight:600}
+  .ribbon{flex:none;text-align:center;border-radius:8px;padding:8px 15px;min-width:96px;
+    border:1.5px solid;background:#fff}
+  .ribbon-k{display:block;font-size:8px;letter-spacing:.22em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+  .ribbon-v{display:block;font-family:var(--display);font-weight:800;font-size:16px;line-height:1.2;margin-top:1px}
+  .ribbon.pass{border-color:#15925A88} .ribbon.pass .ribbon-v{color:#0f6b45}
+  .ribbon.fail{border-color:#DC262688} .ribbon.fail .ribbon-v{color:#b02020}
 
-  .grading{border-collapse:collapse;font-size:8.5px;flex:none}
-  .grading th,.grading td{border:1px solid #b6c4bf;padding:1.5px 6px;text-align:center}
-  .grading thead th{background:#0F7A6B;color:#fff;font-weight:700;border-color:#0F7A6B}
-  .grading tbody tr:nth-child(even){background:#0F7A6B0a}
+  /* ── Identity band ────────────────────────────────────── */
+  .identity{display:flex;margin-top:11px;border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);
+    background:linear-gradient(#fff,#fbf9f1)}
+  .idf{padding:7px 15px;border-right:1px solid var(--line);flex:none;min-width:92px}
+  .idf.grow{flex:1;min-width:0}
+  .idf:last-child{border-right:0}
+  .idf label{display:block;font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .idf b{font-family:var(--script);font-size:17px;font-weight:600;color:var(--ink);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-  .whoband{display:flex;gap:0;margin-top:12px;border:1px solid #cfd9d5;border-radius:8px;overflow:hidden}
-  .whoband>div{flex:1;padding:7px 12px;border-right:1px solid #e3e9e6}
-  .whoband>div:last-child{border-right:0;flex:none;min-width:70px}
-  .whoband label{display:block;font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:#7c8a84;font-weight:700}
-  .whoband b{font-size:13px}
-  .examline{margin-top:8px;font-size:12px;color:#334}
-
-  .body{display:flex;gap:12px;margin-top:12px;flex:1;align-items:flex-start}
-  .marks{border-collapse:collapse;width:100%;font-size:11.5px;flex:1}
-  .marks th,.marks td{border:1px solid #c4cec9;padding:5px 6px}
-  .marks thead th{background:#0F7A6B;color:#fff;font-weight:700;text-align:center;line-height:1.15;border-color:#0d6a5d}
-  .marks .subj{text-align:left;min-width:118px}
-  .marks tbody tr:nth-child(even){background:#0F7A6B08}
+  /* ── Body: marks + sidebar ────────────────────────────── */
+  .body{display:flex;gap:16px;margin-top:10px;flex:1;align-items:stretch;min-height:0}
+  .marks{border-collapse:collapse;width:100%;font-size:12.5px;flex:1;align-self:flex-start}
+  .marks th,.marks td{border-bottom:1px solid var(--line);padding:7px 9px}
+  .marks thead th{background:var(--teal);color:#fff;font-weight:600;text-align:center;font-size:9.5px;
+    letter-spacing:.1em;text-transform:uppercase;border-bottom:2px solid var(--gold);padding:8px 6px}
+  .marks thead th.subj{text-align:left}
+  .marks .subj{text-align:left;min-width:150px;font-family:var(--script);font-size:15px;font-weight:600}
   .marks td.c{text-align:center}
-  .marks td.b{font-weight:700;color:#0A5A4E}
-  .marks tfoot .grand td{background:#C9A22718;font-weight:800;color:#0A5A4E;border-color:#C9A227}
+  .marks td.n{font-variant-numeric:tabular-nums}
+  .marks td.dim{color:var(--muted)}
+  .marks td.strong{font-weight:800;color:var(--teal-d)}
+  .marks tbody tr:nth-child(even){background:rgba(15,122,107,.035)}
+  .gpill{display:inline-block;min-width:30px;font-weight:800;font-size:11px;color:var(--teal-d);
+    background:var(--gold-soft);border:1px solid var(--gold-l);border-radius:999px;padding:1px 8px}
+  .marks tfoot .grand td{background:var(--gold-soft);font-weight:800;color:var(--teal-d);font-size:13px;
+    border-top:2px solid var(--gold);border-bottom:none;padding:9px}
+  .marks tfoot .grand td:first-child{letter-spacing:.06em;text-transform:uppercase;font-size:11px}
 
-  .panel{width:172px;flex:none;display:flex;flex-direction:column;gap:10px}
-  .gpaBadge{border:2px solid #C9A227;border-radius:12px;text-align:center;padding:10px 6px;
-    background:radial-gradient(circle at 50% 0%,#fff,#f6f2e4)}
-  .gpaBadge .lbl{display:block;font-size:9px;letter-spacing:.2em;color:#9a7d1f;font-weight:700}
-  .gpaBadge .val{display:block;font-family:Georgia,serif;font-size:34px;font-weight:800;color:#0A5A4E;line-height:1.05}
-  .gpaBadge .grade{display:inline-block;margin-top:3px;font-size:12px;font-weight:800;color:#fff;background:#0F7A6B;border-radius:999px;padding:1px 12px}
-  .info{width:100%;border-collapse:collapse;font-size:11.5px}
-  .info td{border:1px solid #c4cec9;padding:5px 8px}
-  .info td:first-child{color:#556;background:#0F7A6B08}
-  .info td:last-child{text-align:right;font-weight:700}
-  .result{text-align:center;font-weight:800;letter-spacing:.14em;border-radius:8px;padding:7px}
-  .result.pass{color:#0f6b45;background:#15925A16;border:1px solid #15925A66}
-  .result.fail{color:#b02020;background:#DC262616;border:1px solid #DC262666}
+  .side{width:236px;flex:none;display:flex;flex-direction:column;gap:11px}
+  .medallion{display:flex;justify-content:center}
+  .medal-ring{width:138px;height:138px;border-radius:50%;text-align:center;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    background:radial-gradient(circle at 50% 34%,#fff,#f5efdd);
+    border:2px solid var(--gold);box-shadow:inset 0 0 0 5px #fff,inset 0 0 0 6px var(--gold-l),0 4px 12px rgba(0,0,0,.08)}
+  .medal-k{font-size:7.5px;letter-spacing:.18em;text-transform:uppercase;color:#9a7d1f;font-weight:700;max-width:96px;line-height:1.3}
+  .medal-v{font-family:var(--display);font-size:42px;font-weight:800;color:var(--teal-d);line-height:.98;margin-top:2px}
+  .medal-g{margin-top:3px;font-weight:800;font-size:12px;color:#fff;background:var(--teal);border-radius:999px;padding:2px 16px;letter-spacing:.04em}
 
-  .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;padding-top:22px}
-  .issued{font-size:10px;color:#889}
+  .statlist{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+  .statlist>div{display:flex;justify-content:space-between;align-items:center;padding:6.5px 11px;border-bottom:1px solid var(--line)}
+  .statlist>div:last-child{border-bottom:0}
+  .statlist label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .statlist b{font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
+
+  .grading{border-collapse:collapse;width:100%;font-size:9.5px}
+  .grading th,.grading td{border:1px solid #cdd6cf;padding:2.5px 6px;text-align:center}
+  .grading thead th{background:var(--teal-d);color:#fff;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:8.5px;border-color:var(--teal-dd)}
+  .grading tbody tr:nth-child(even){background:rgba(15,122,107,.05)}
+  .grading td.b{font-weight:800;color:var(--teal-d)}
+
+  /* ── Footer ───────────────────────────────────────────── */
+  .foot{margin-top:7px;display:flex;justify-content:space-between;align-items:flex-end;
+    padding-top:7px;border-top:1px solid var(--gold)}
+  .fineprint{font-size:9.5px;color:var(--muted);line-height:1.5}
+  .fineprint .fp-title{font-family:var(--script);font-style:italic;font-size:12px;color:#556;font-weight:600}
   .sig{text-align:center;position:relative}
-  .sig .seal{position:absolute;left:50%;top:-30px;transform:translateX(-50%) rotate(-10deg);
-    width:44px;height:44px;border-radius:50%;border:2px dashed #C9A227;color:#C9A22799;font-family:Georgia,serif;
-    font-weight:800;font-size:18px;display:grid;place-items:center;opacity:.85}
-  .sig .line{width:190px;border-top:1.5px solid #334;margin:0 auto 4px}
-  .sig span{font-size:11px;font-weight:600;color:#445}
+  .sig .wax{position:absolute;left:50%;top:-34px;transform:translateX(-50%) rotate(-9deg);
+    width:44px;height:44px;border-radius:50%;font-family:var(--display);font-weight:800;font-size:18px;
+    display:grid;place-items:center;color:#fff;
+    background:radial-gradient(circle at 34% 30%,#c99a3a,var(--gold));
+    box-shadow:inset 0 0 0 3px rgba(255,255,255,.35),0 2px 5px rgba(0,0,0,.2);opacity:.95}
+  .sig .sig-line{width:210px;border-top:1.5px solid var(--ink);margin:0 auto 4px}
+  .sig span{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#3d4d47}
 
-  .toolbar{position:fixed;top:10px;right:10px}
-  .toolbar button{background:#0F7A6B;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:14px;cursor:pointer;font-family:inherit}
-  @media print{.toolbar{display:none}body{background:#fff}.sheet{margin:0;min-height:auto;padding:6mm}}
-  @page{size:A4 portrait;margin:0}
+  .toolbar{position:fixed;top:10px;right:10px;z-index:99}
+  .toolbar button{background:var(--teal);color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:14px;cursor:pointer;font-family:var(--sans);font-weight:600}
+  @media print{.toolbar{display:none}body{background:#fff}.sheet{margin:0;padding:0}}
+  @page{size:A4 landscape;margin:0}
 </style></head><body>
   <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
   ${pages}
+  <script>
+    (function(){
+      function go(){ try{ window.focus(); window.print(); }catch(e){} }
+      // Wait for the webfonts to settle so type isn't captured mid-swap; fonts.ready
+      // resolves even if the fonts fail to load, so this can never hang.
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ setTimeout(go, 120); });
+      else setTimeout(go, 700);
+    })();
+  </script>
 </body></html>`;
 }
 
@@ -247,12 +323,12 @@ export function buildTranscriptDoc(list: TranscriptData[]): string {
 }
 
 function openDoc(html: string) {
-  const w = window.open("", "_blank", "width=900,height=1100");
+  const w = window.open("", "_blank", "width=1180,height=900");
   if (!w) return;
   w.document.write(html);
   w.document.close();
   w.focus();
-  setTimeout(() => w.print(), 400);
+  // Printing is triggered inside the document once webfonts are ready.
 }
 
 /** Print a single student's transcript. */
