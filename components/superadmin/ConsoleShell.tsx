@@ -16,12 +16,14 @@ import IconButton from "@mui/material/IconButton";
 import Divider from "@mui/material/Divider";
 import Tooltip from "@mui/material/Tooltip";
 import Chip from "@mui/material/Chip";
+import Badge from "@mui/material/Badge";
 import MenuIcon from "@mui/icons-material/Menu";
 import DashboardIcon from "@mui/icons-material/SpaceDashboard";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 import GroupsIcon from "@mui/icons-material/Groups";
 import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import PaletteIcon from "@mui/icons-material/Palette";
+import ForumIcon from "@mui/icons-material/Forum";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
@@ -33,14 +35,23 @@ import { useConsoleMode } from "@/components/providers/ConsoleThemeProvider";
 
 const DRAWER_WIDTH = 264;
 
-type NavItem = { href: string; label: string; icon: React.ReactNode; perm: Permission; exact?: boolean };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  perm: Permission;
+  exact?: boolean;
+  badge?: number;
+};
 
 export default function ConsoleShell({
   role,
   children,
+  unreadMessages = 0,
 }: {
   role: Role;
   children: React.ReactNode;
+  unreadMessages?: number;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -49,12 +60,13 @@ export default function ConsoleShell({
   const nav = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
       { href: "/superadmin", label: "Dashboard", icon: <DashboardIcon />, perm: "console:view", exact: true },
+      { href: "/superadmin/messages", label: "Messages", icon: <ForumIcon />, perm: "messages:manage", badge: unreadMessages },
       { href: "/superadmin/students", label: "Students", icon: <GroupsIcon />, perm: "students:read" },
       { href: "/superadmin/users", label: "Users & Roles", icon: <ManageAccountsIcon />, perm: "users:manage" },
       { href: "/superadmin/theme", label: "Theme Builder", icon: <PaletteIcon />, perm: "theme:manage" },
     ];
     return items.filter((i) => can(role, i.perm));
-  }, [role]);
+  }, [role, unreadMessages]);
 
   const isActive = (item: NavItem) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href);
@@ -104,7 +116,15 @@ export default function ConsoleShell({
                   },
                 }}
               >
-                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemIcon>
+                  {item.badge ? (
+                    <Badge color="error" badgeContent={item.badge} max={99}>
+                      {item.icon}
+                    </Badge>
+                  ) : (
+                    item.icon
+                  )}
+                </ListItemIcon>
                 <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
               </ListItemButton>
             </ListItem>
@@ -146,6 +166,15 @@ export default function ConsoleShell({
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }} noWrap>
             Admin Console
           </Typography>
+          {can(role, "messages:manage") && (
+            <Tooltip title="Messages">
+              <IconButton color="inherit" component={NextLink} href="/superadmin/messages" aria-label="Messages">
+                <Badge color="error" badgeContent={unreadMessages} max={99}>
+                  <ForumIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+          )}
           <Tooltip title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
             <IconButton color="inherit" onClick={toggle} aria-label="toggle color mode">
               {mode === "dark" ? <LightModeIcon /> : <DarkModeIcon />}

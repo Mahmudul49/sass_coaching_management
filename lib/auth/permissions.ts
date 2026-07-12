@@ -14,7 +14,8 @@ export type Permission =
   | "students:read" // cross-center marketing student search
   | "users:read" // view platform users
   | "users:manage" // create / edit / delete / reset / (de)activate platform users
-  | "theme:manage"; // open + save the Theme Builder
+  | "theme:manage" // open + save the Theme Builder
+  | "messages:manage"; // Admin Messaging: inbox, reply, broadcast, soft delete
 
 const ALL: Permission[] = [
   "console:view",
@@ -24,6 +25,7 @@ const ALL: Permission[] = [
   "users:read",
   "users:manage",
   "theme:manage",
+  "messages:manage",
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {

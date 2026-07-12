@@ -13,6 +13,8 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import IconButton from "@mui/material/IconButton";
+import Badge from "@mui/material/Badge";
+import Tooltip from "@mui/material/Tooltip";
 import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import BottomNavigation from "@mui/material/BottomNavigation";
@@ -27,6 +29,7 @@ import FactCheckIcon from "@mui/icons-material/FactCheck";
 import PaidIcon from "@mui/icons-material/Paid";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import SettingsIcon from "@mui/icons-material/Settings";
+import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import SchoolIcon from "@mui/icons-material/School";
 import LogoutButton from "./LogoutButton";
 import LanguageToggle from "./LanguageToggle";
@@ -39,9 +42,11 @@ const DRAWER_WIDTH = 256;
 export default function AdminShell({
   centerName,
   children,
+  unreadMessages = 0,
 }: {
   centerName: string;
   children: React.ReactNode;
+  unreadMessages?: number;
 }) {
   const pathname = usePathname();
   const base = tenantAdminBaseFromPath(pathname);
@@ -55,12 +60,13 @@ export default function AdminShell({
       { href: `${base}/attendance`, label: t("nav_attendance"), icon: <FactCheckIcon />, primary: true },
       { href: `${base}/payments`, label: t("nav_payments"), icon: <PaidIcon />, primary: true },
       { href: `${base}/reports`, label: t("nav_reports"), icon: <AssessmentIcon />, primary: true },
+      { href: `${base}/messages`, label: t("nav_messages"), icon: <ForumOutlinedIcon />, badge: unreadMessages },
       { href: `${base}/classes`, label: t("nav_classes"), icon: <ClassIcon /> },
       { href: `${base}/sections`, label: t("nav_sections"), icon: <CategoryIcon /> },
       { href: `${base}/fees`, label: t("nav_fees"), icon: <ReceiptLongIcon /> },
       { href: `${base}/settings`, label: t("nav_settings"), icon: <SettingsIcon /> },
     ],
-    [base, t]
+    [base, t, unreadMessages]
   );
   const primary = nav.filter((n) => n.primary);
 
@@ -129,7 +135,15 @@ export default function AdminShell({
                   },
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+                <ListItemIcon sx={{ minWidth: 40 }}>
+                  {item.badge ? (
+                    <Badge color="error" badgeContent={item.badge} max={99}>
+                      {item.icon}
+                    </Badge>
+                  ) : (
+                    item.icon
+                  )}
+                </ListItemIcon>
                 <ListItemText
                   primary={item.label}
                   primaryTypographyProps={{ fontWeight: active ? 700 : 600, fontSize: "0.92rem" }}
@@ -159,6 +173,19 @@ export default function AdminShell({
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }} noWrap>
             {centerName}
           </Typography>
+          <Tooltip title={t("nav_messages")}>
+            <IconButton
+              color="inherit"
+              component={NextLink}
+              href={`${base}/messages`}
+              aria-label={t("nav_messages")}
+              sx={{ mr: 0.5 }}
+            >
+              <Badge color="error" badgeContent={unreadMessages} max={99}>
+                <ForumOutlinedIcon />
+              </Badge>
+            </IconButton>
+          </Tooltip>
           <LanguageToggle />
           <LogoutButton />
         </Toolbar>

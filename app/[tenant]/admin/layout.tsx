@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { requireAdmin } from "@/lib/auth/guards";
+import { getAdminUnread } from "@/lib/messages/queries";
 import AdminShell from "@/components/layout/AdminShell";
 
 export default async function AdminLayout({
@@ -11,5 +12,10 @@ export default async function AdminLayout({
 }) {
   const { tenant: slug } = await params;
   const { tenant } = await requireAdmin(slug);
-  return <AdminShell centerName={tenant.name}>{children}</AdminShell>;
+  const unreadMessages = await getAdminUnread(tenant.id);
+  return (
+    <AdminShell centerName={tenant.name} unreadMessages={unreadMessages}>
+      {children}
+    </AdminShell>
+  );
 }

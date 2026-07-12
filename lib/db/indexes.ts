@@ -72,5 +72,17 @@ export async function ensureIndexes(db: Db): Promise<void> {
 
     // themeSettings: a single global console theme doc keyed by scope.
     db.collection(Collections.themeSettings).createIndex({ scope: 1 }, { unique: true }),
+
+    // messaging: one conversation per tenant (upsert target); super inbox sorts
+    // by most-recent activity.
+    db.collection(Collections.conversations).createIndex({ tenantId: 1 }, { unique: true }),
+    db.collection(Collections.conversations).createIndex({ lastMessageAt: -1 }),
+    // messages: load a conversation thread newest-first, paginate by _id.
+    db.collection(Collections.messages).createIndex({ tenantId: 1, _id: -1 }),
+    db.collection(Collections.messages).createIndex({ conversationId: 1, _id: -1 }),
+
+    // auditLog: recent-first, and per-center history.
+    db.collection(Collections.auditLog).createIndex({ createdAt: -1 }),
+    db.collection(Collections.auditLog).createIndex({ tenantId: 1, createdAt: -1 }),
   ]);
 }

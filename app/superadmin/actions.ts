@@ -1,10 +1,11 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db/connect";
-import { Collections } from "@/lib/db/collections";
-import { hashPassword } from "@/lib/auth/password";
+import { Collections, type TenantDoc, type UserDoc } from "@/lib/db/collections";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { requireSuperAdmin } from "@/lib/auth/guards";
 import { invalidateTenant } from "@/lib/tenant/server";
+import { runCleanCenterData } from "@/lib/superadmin/cleanData";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -157,4 +158,67 @@ export async function setTenantActive(
   invalidateTenant(tenant.slug as string);
   revalidatePath("/superadmin");
   return { ok: true };
+}
+
+export type CleanDataResult = {
+  ok: boolean;
+  error?: string;
+  deleted?: Record<string, number>;
+  total?: number;
+};
+
+/**
+ * CLEAN CENTER DATA (SuperAdmin only). Irreversibly wipes a center's operational
+ * data while preserving its profile + admin account. Requires the exact phrase
+ * "CLEAN CENTER" AND the acting super-admin's own password, both re-verified here
+ * on the server — the client checks are only for UX and are never trusted.
+ */
+export async function cleanCenterData(input: {
+  tenantId: string;
+  confirmText: string;
+  password: string;
+}): Promise<CleanDataResult> {
+  const { userId, name } = await requireSuperAdmin(); // 403s non-superadmins
+
+  if ((input.confirmText ?? "").trim() !== "CLEAN CENTER") {
+    return { ok: false, error: 'Type "CLEAN CENTER" exactly to confirm.' };
+  }
+  if (!input.password) return { ok: false, error: "Enter your Super Admin password." };
+
+  const db = await getDb();
+  const { ObjectId } = await import("mongodb");
+
+  let tenantOid;
+  try {
+    tenantOid = new ObjectId(input.tenantId);
+  } catch {
+    return { ok: false, error: "Invalid center." };
+  }
+  const tenant = await db.collection<TenantDoc>(Collections.tenants).findOne({ _id: tenantOid });
+  if (!tenant) return { ok: false, error: "Center not found." };
+
+  // Re-verify the acting super-admin's password against their own record.
+  let actorOid;
+  try {
+    actorOid = new ObjectId(userId);
+  } catch {
+    return { ok: false, error: "Not authorized." };
+  }
+  const actor = await db
+    .collection<UserDoc>(Collections.users)
+    .findOne({ _id: actorOid, tenantId: null, role: "superadmin" });
+  if (!actor) return { ok: false, error: "Not authorized." };
+  const passwordOk = await verifyPassword(input.password, actor.passwordHash);
+  if (!passwordOk) return { ok: false, error: "Password is incorrect." };
+
+  const res = await runCleanCenterData(
+    { id: tenant._id.toString(), slug: tenant.slug, name: tenant.name },
+    { id: userId, name }
+  );
+  if (!res.ok) return { ok: false, error: res.error ?? "Cleanup failed." };
+
+  // The center now has a fresh database — refresh cached tenant + student counts.
+  invalidateTenant(tenant.slug);
+  revalidatePath("/superadmin");
+  return { ok: true, deleted: res.deleted, total: res.total };
 }

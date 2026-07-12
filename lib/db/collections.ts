@@ -21,6 +21,9 @@ export const Collections = {
   payments: "payments",
   smsLog: "smsLog",
   themeSettings: "themeSettings",
+  conversations: "conversations",
+  messages: "messages",
+  auditLog: "auditLog",
 } as const;
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections];
@@ -191,4 +194,58 @@ export type ThemeDoc = {
   light: ThemePalette;
   dark: ThemePalette;
   updatedAt: Date;
+};
+
+/**
+ * ADMIN MESSAGING — a private channel between the Super Admin (platform) and a
+ * single tenant admin (coaching-center owner). One conversation per tenant. This
+ * is platform-level data (spans the super↔tenant relationship), so it is NOT
+ * tenant-scoped via `forTenant`: the super sees every conversation, while an
+ * admin is confined to `tenantId === their own tenant` (derived from the session,
+ * never from client input).
+ */
+export type MessageSenderRole = "superadmin" | "admin";
+
+export type ConversationDoc = {
+  _id: ObjectId;
+  tenantId: string; // the tenant admin on the other side of the channel
+  lastMessageAt: Date | null;
+  lastMessagePreview: string;
+  lastSenderRole: MessageSenderRole | null;
+  adminUnread: number; // messages the tenant admin hasn't read (sent by super)
+  superUnread: number; // messages the super hasn't read (sent by that admin)
+  createdAt: Date;
+};
+
+export type MessageDoc = {
+  _id: ObjectId;
+  tenantId: string; // scopes an admin to their own conversation
+  conversationId: string; // conversation _id (hex)
+  senderRole: MessageSenderRole;
+  senderId: string;
+  senderName: string;
+  body: string;
+  createdAt: Date;
+  readByAdmin: boolean;
+  readBySuper: boolean;
+  deleted: boolean; // soft delete (Super Admin only)
+  deletedAt: Date | null;
+  deletedBy: string | null;
+};
+
+/**
+ * Append-only audit trail for sensitive platform actions (e.g. "Clean Center
+ * Data"). Records WHO did WHAT to WHICH center and the outcome. Never mutated.
+ */
+export type AuditLogDoc = {
+  _id: ObjectId;
+  action: string; // e.g. "clean_center_data"
+  actorId: string; // super-admin user _id
+  actorName: string;
+  tenantId: string;
+  tenantSlug: string;
+  tenantName: string;
+  status: "success" | "failed";
+  details?: Record<string, unknown>; // deleted counts, or the error message
+  createdAt: Date;
 };

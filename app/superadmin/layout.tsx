@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { requireConsoleUser } from "@/lib/auth/guards";
+import { can } from "@/lib/auth/permissions";
+import { getSuperUnreadTotal } from "@/lib/messages/queries";
 import { getConsoleTheme } from "@/lib/superadmin/theme";
 import { I18nProvider } from "@/components/providers/I18nProvider";
 import ConsoleThemeProvider from "@/components/providers/ConsoleThemeProvider";
@@ -9,7 +11,11 @@ import type { ThemeMode } from "@/lib/theme/console";
 
 export default async function SuperAdminLayout({ children }: { children: ReactNode }) {
   const { role } = await requireConsoleUser(); // redirects to /login or 403s
-  const [theme, cookieStore] = await Promise.all([getConsoleTheme(), cookies()]);
+  const [theme, cookieStore, unreadMessages] = await Promise.all([
+    getConsoleTheme(),
+    cookies(),
+    can(role, "messages:manage") ? getSuperUnreadTotal() : Promise.resolve(0),
+  ]);
   const mode: ThemeMode =
     cookieStore.get("console-theme-mode")?.value === "dark" ? "dark" : "light";
 
@@ -17,7 +23,9 @@ export default async function SuperAdminLayout({ children }: { children: ReactNo
   return (
     <I18nProvider initialLocale="en">
       <ConsoleThemeProvider light={theme.light} dark={theme.dark} initialMode={mode}>
-        <ConsoleShell role={role}>{children}</ConsoleShell>
+        <ConsoleShell role={role} unreadMessages={unreadMessages}>
+          {children}
+        </ConsoleShell>
       </ConsoleThemeProvider>
     </I18nProvider>
   );

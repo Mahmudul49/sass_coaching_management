@@ -12,8 +12,17 @@ import Alert from "@mui/material/Alert";
 import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Divider from "@mui/material/Divider";
+import CircularProgress from "@mui/material/CircularProgress";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import CleaningServicesIcon from "@mui/icons-material/CleaningServices";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { type GridColDef } from "@mui/x-data-grid";
 import EmptyState from "@/components/ui/EmptyState";
 import ResponsiveTable from "@/components/ui/ResponsiveTable";
@@ -22,7 +31,7 @@ import BlockIcon from "@mui/icons-material/Block";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useToast } from "@/components/providers/ToastProvider";
 import { useI18n } from "@/components/providers/I18nProvider";
-import { createTenant, setTenantActive, updateTenant } from "@/app/superadmin/actions";
+import { createTenant, setTenantActive, updateTenant, cleanCenterData } from "@/app/superadmin/actions";
 import type { TenantRow } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
 import { tenantSiteLabel, tenantSiteUrl } from "@/lib/tenant/paths";
@@ -40,6 +49,7 @@ export default function TenantsClient({
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TenantRow | null>(null);
+  const [cleaning, setCleaning] = useState<TenantRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const columns = useMemo<GridColDef<TenantRow>[]>(
@@ -84,26 +94,17 @@ export default function TenantsClient({
             {
               field: "actions",
               headerName: t("c_action"),
-              width: 130,
+              width: 90,
               sortable: false,
               filterable: false,
               renderCell: (p) => (
-                <>
-                  <Tooltip title={t("edit")}>
-                    <IconButton size="small" onClick={() => setEditing(p.row)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Button
-                    size="small"
-                    color={p.row.active ? "error" : "success"}
-                    variant="outlined"
-                    disabled={pending}
-                    onClick={() => toggle(p.row)}
-                  >
-                    {p.row.active ? t("sa_inactive") : t("sa_active")}
-                  </Button>
-                </>
+                <RowMenu
+                  active={p.row.active}
+                  disabled={pending}
+                  onEdit={() => setEditing(p.row)}
+                  onToggle={() => toggle(p.row)}
+                  onClean={() => setCleaning(p.row)}
+                />
               ),
             } as GridColDef<TenantRow>,
           ]
@@ -191,6 +192,12 @@ export default function TenantsClient({
                             icon: <CheckCircleIcon fontSize="small" />,
                             onClick: () => toggle(row),
                           },
+                      {
+                        label: "Clean Data",
+                        icon: <CleaningServicesIcon fontSize="small" />,
+                        danger: true,
+                        onClick: () => setCleaning(row),
+                      },
                     ]
                   : []
               }
@@ -209,7 +216,194 @@ export default function TenantsClient({
         onClose={() => setEditing(null)}
         rootDomain={rootDomain}
       />
+      <CleanDataDialog tenant={cleaning} onClose={() => setCleaning(null)} />
     </Card>
+  );
+}
+
+/**
+ * Row action menu (desktop grid): Edit · Activate/Deactivate · Clean Data. A
+ * single compact ⋮ so no action can ever be clipped by the column width.
+ */
+function RowMenu({
+  active,
+  disabled,
+  onEdit,
+  onToggle,
+  onClean,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  onEdit: () => void;
+  onToggle: () => void;
+  onClean: () => void;
+}) {
+  const [anchor, setAnchor] = useState<null | HTMLElement>(null);
+  const close = () => setAnchor(null);
+  return (
+    <>
+      <Tooltip title="Actions">
+        <IconButton size="small" aria-label="row actions" onClick={(e) => setAnchor(e.currentTarget)}>
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Menu anchorEl={anchor} open={!!anchor} onClose={close}>
+        <MenuItem
+          onClick={() => {
+            close();
+            onEdit();
+          }}
+        >
+          <ListItemIcon>
+            <EditIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Edit</ListItemText>
+        </MenuItem>
+        <MenuItem
+          disabled={disabled}
+          onClick={() => {
+            close();
+            onToggle();
+          }}
+        >
+          <ListItemIcon>
+            {active ? <BlockIcon fontSize="small" /> : <CheckCircleIcon fontSize="small" />}
+          </ListItemIcon>
+          <ListItemText>{active ? "Deactivate" : "Activate"}</ListItemText>
+        </MenuItem>
+        <Divider />
+        <MenuItem
+          onClick={() => {
+            close();
+            onClean();
+          }}
+          sx={{ color: "error.main" }}
+        >
+          <ListItemIcon sx={{ color: "error.main" }}>
+            <CleaningServicesIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Clean Data</ListItemText>
+        </MenuItem>
+      </Menu>
+    </>
+  );
+}
+
+/**
+ * Clean Center Data — a two-stage destructive flow. Stage 1 requires the exact
+ * phrase "CLEAN CENTER" and the super-admin's password; stage 2 is the final
+ * confirmation. Both the phrase and the password are re-verified on the server.
+ */
+function CleanDataDialog({ tenant, onClose }: { tenant: TenantRow | null; onClose: () => void }) {
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  const [stage, setStage] = useState<"form" | "confirm">("form");
+  const [phrase, setPhrase] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset the flow whenever a different center is opened.
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+  if (tenant && tenant.id !== loadedId) {
+    setLoadedId(tenant.id);
+    setStage("form");
+    setPhrase("");
+    setPassword("");
+    setError(null);
+  }
+  if (!tenant && loadedId !== null) setLoadedId(null);
+
+  const phraseOk = phrase.trim() === "CLEAN CENTER";
+  const canContinue = phraseOk && password.length > 0 && !pending;
+
+  function execute() {
+    if (!tenant) return;
+    setError(null);
+    start(async () => {
+      const res = await cleanCenterData({ tenantId: tenant.id, confirmText: phrase, password });
+      if (res.ok) {
+        toast.success(
+          `${tenant.name}: removed ${res.total ?? 0} record(s). The admin can log in to a fresh database.`
+        );
+        onClose();
+      } else {
+        setError(res.error ?? "Something went wrong.");
+        setStage("form");
+      }
+    });
+  }
+
+  return (
+    <ResponsiveDialog
+      open={!!tenant}
+      onClose={onClose}
+      disableClose={pending}
+      title={stage === "form" ? "Clean Center Data" : "Final confirmation"}
+      actions={
+        stage === "form" ? (
+          <>
+            <Button variant="text" color="inherit" onClick={onClose} disabled={pending}>
+              Cancel
+            </Button>
+            <Button color="error" onClick={() => setStage("confirm")} disabled={!canContinue}>
+              Continue
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="text" color="inherit" onClick={() => setStage("form")} disabled={pending}>
+              Back
+            </Button>
+            <Button
+              color="error"
+              onClick={execute}
+              disabled={pending}
+              startIcon={pending ? <CircularProgress size={16} color="inherit" /> : <DeleteForeverIcon />}
+            >
+              {pending ? "Cleaning…" : "Permanently delete"}
+            </Button>
+          </>
+        )
+      }
+    >
+      {stage === "form" ? (
+        <Stack spacing={2.5}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Alert severity="warning">
+            This permanently deletes <b>all operational data</b> for <b>{tenant?.name}</b> — students,
+            classes, sections, fees, payments, attendance, messages, SMS logs and related records. The
+            center, the admin account, login, roles and profile are <b>preserved</b>, so the admin can
+            start with a fresh database. This cannot be undone.
+          </Alert>
+          <TextField
+            label='Type "CLEAN CENTER" to confirm'
+            value={phrase}
+            onChange={(e) => setPhrase(e.target.value)}
+            error={phrase.length > 0 && !phraseOk}
+            autoComplete="off"
+            slotProps={{ htmlInput: { spellCheck: false, autoCapitalize: "characters" } }}
+          />
+          <TextField
+            label="Your Super Admin password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </Stack>
+      ) : (
+        <Stack spacing={2}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Alert severity="error">
+            You are about to <b>permanently erase</b> all data for <b>{tenant?.name}</b>. This action is
+            irreversible.
+          </Alert>
+          <Typography variant="body2" color="text.secondary">
+            Click “Permanently delete” to proceed, or Back to review.
+          </Typography>
+        </Stack>
+      )}
+    </ResponsiveDialog>
   );
 }
 
