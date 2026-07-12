@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import NextLink from "next/link";
 import AppBar from "@mui/material/AppBar";
@@ -17,6 +17,7 @@ import Badge from "@mui/material/Badge";
 import Tooltip from "@mui/material/Tooltip";
 import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
+import Collapse from "@mui/material/Collapse";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -31,13 +32,90 @@ import AssessmentIcon from "@mui/icons-material/Assessment";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import SchoolIcon from "@mui/icons-material/School";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import LogoutButton from "./LogoutButton";
 import LanguageToggle from "./LanguageToggle";
 import { alpha } from "@mui/material/styles";
 import { tenantAdminBaseFromPath } from "./tenantAdminBase";
 import { useI18n } from "@/components/providers/I18nProvider";
+import type { MessageKey } from "@/lib/i18n/dictionaries";
 
-const DRAWER_WIDTH = 256;
+const DRAWER_WIDTH = 268;
+const RAIL_WIDTH = 76;
+const LS_COLLAPSED = "admin.nav.collapsed";
+const LS_GROUPS = "admin.nav.groups";
+
+/* ── Navigation model ──────────────────────────────────────────────────────────
+   Regroups the existing 10 admin destinations into scannable clusters. No routes,
+   guards or business logic change — only presentation and ordering. */
+type LeafDef = { key: MessageKey; slug: string; icon: ReactNode; badgeKey?: "messages" };
+type NodeDef =
+  | ({ kind: "leaf" } & LeafDef)
+  | { kind: "group"; id: string; key: MessageKey; icon: ReactNode; children: LeafDef[] };
+
+const MODEL: NodeDef[] = [
+  { kind: "leaf", key: "nav_dashboard", slug: "", icon: <DashboardIcon /> },
+  { kind: "leaf", key: "nav_students", slug: "/students", icon: <GroupsIcon /> },
+  {
+    kind: "group",
+    id: "academic",
+    key: "nav_group_academic",
+    icon: <MenuBookIcon />,
+    children: [
+      { key: "nav_attendance", slug: "/attendance", icon: <FactCheckIcon /> },
+      { key: "nav_classes", slug: "/classes", icon: <ClassIcon /> },
+      { key: "nav_sections", slug: "/sections", icon: <CategoryIcon /> },
+    ],
+  },
+  {
+    kind: "group",
+    id: "finance",
+    key: "nav_group_finance",
+    icon: <AccountBalanceWalletIcon />,
+    children: [
+      { key: "nav_payments", slug: "/payments", icon: <PaidIcon /> },
+      { key: "nav_fees", slug: "/fees", icon: <ReceiptLongIcon /> },
+    ],
+  },
+  { kind: "leaf", key: "nav_reports", slug: "/reports", icon: <AssessmentIcon /> },
+  { kind: "leaf", key: "nav_messages", slug: "/messages", icon: <ForumOutlinedIcon />, badgeKey: "messages" },
+  { kind: "leaf", key: "nav_settings", slug: "/settings", icon: <SettingsIcon /> },
+];
+
+// Flat list of every leaf, in display order — used for the collapsed rail,
+// bottom-nav lookups and page-title resolution.
+const ALL_LEAVES: LeafDef[] = MODEL.flatMap((n) =>
+  n.kind === "leaf" ? [n] : n.children
+);
+
+// Slugs surfaced in the mobile bottom bar (the rest live under "More").
+const BOTTOM_SLUGS = ["", "/students", "/payments", "/messages"] as const;
+
+/** Reads a persisted value once on mount (client only), then keeps it in sync. */
+function usePersisted<T>(key: string, initial: T) {
+  const [value, setValue] = useState<T>(initial);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw != null) setValue(JSON.parse(raw) as T);
+    } catch {
+      /* private mode / disabled storage — fall back to defaults */
+    }
+  }, [key]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* ignore */
+    }
+  }, [key, value]);
+  return [value, setValue] as const;
+}
 
 export default function AdminShell({
   centerName,
@@ -45,40 +123,194 @@ export default function AdminShell({
   unreadMessages = 0,
 }: {
   centerName: string;
-  children: React.ReactNode;
+  children: ReactNode;
   unreadMessages?: number;
 }) {
   const pathname = usePathname();
   const base = tenantAdminBaseFromPath(pathname);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const { t } = useI18n();
 
-  const nav = useMemo(
-    () => [
-      { href: base, label: t("nav_dashboard"), icon: <DashboardIcon />, primary: true },
-      { href: `${base}/students`, label: t("nav_students"), icon: <GroupsIcon />, primary: true },
-      { href: `${base}/attendance`, label: t("nav_attendance"), icon: <FactCheckIcon />, primary: true },
-      { href: `${base}/payments`, label: t("nav_payments"), icon: <PaidIcon />, primary: true },
-      { href: `${base}/reports`, label: t("nav_reports"), icon: <AssessmentIcon />, primary: true },
-      { href: `${base}/messages`, label: t("nav_messages"), icon: <ForumOutlinedIcon />, badge: unreadMessages },
-      { href: `${base}/classes`, label: t("nav_classes"), icon: <ClassIcon /> },
-      { href: `${base}/sections`, label: t("nav_sections"), icon: <CategoryIcon /> },
-      { href: `${base}/fees`, label: t("nav_fees"), icon: <ReceiptLongIcon /> },
-      { href: `${base}/settings`, label: t("nav_settings"), icon: <SettingsIcon /> },
-    ],
-    [base, t, unreadMessages]
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = usePersisted<boolean>(LS_COLLAPSED, false);
+  const [openGroups, setOpenGroups] = usePersisted<Record<string, boolean>>(LS_GROUPS, {
+    academic: true,
+    finance: true,
+  });
+
+  const hrefOf = useCallback((slug: string) => `${base}${slug}`, [base]);
+  const badgeOf = useCallback(
+    (leaf: LeafDef) => (leaf.badgeKey === "messages" ? unreadMessages : 0),
+    [unreadMessages]
   );
-  const primary = nav.filter((n) => n.primary);
+  const isActive = useCallback(
+    (slug: string) => {
+      const href = hrefOf(slug);
+      return slug === "" ? pathname === base : pathname.startsWith(href);
+    },
+    [pathname, base, hrefOf]
+  );
+  const groupHasActive = useCallback(
+    (children: LeafDef[]) => children.some((c) => isActive(c.slug)),
+    [isActive]
+  );
 
-  const isActive = (href: string) =>
-    href === base ? pathname === base : pathname.startsWith(href);
+  // Auto-reveal the group that owns the current route — once, on first paint.
+  useEffect(() => {
+    const active = MODEL.find(
+      (n) => n.kind === "group" && n.children.some((c) => isActive(c.slug))
+    );
+    if (active && active.kind === "group") {
+      setOpenGroups((prev) => (prev[active.id] ? prev : { ...prev, [active.id]: true }));
+    }
+    // Intentionally runs on mount only; user toggles are respected thereafter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Value for the bottom nav: the matched primary href, else false.
-  const bottomValue = primary.find((p) => isActive(p.href))?.href ?? false;
+  const activeLeaf = useMemo(
+    () => ALL_LEAVES.find((l) => isActive(l.slug)),
+    [isActive]
+  );
+  const pageTitle = activeLeaf ? t(activeLeaf.key) : centerName;
 
-  const drawerContent = (
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+  const toggleGroup = useCallback(
+    (id: string) => setOpenGroups((p) => ({ ...p, [id]: !p[id] })),
+    [setOpenGroups]
+  );
+
+  /* ── Leaf row ─────────────────────────────────────────────────────────────── */
+  const leafButton = (leaf: LeafDef, opts: { rail: boolean; nested?: boolean }) => {
+    const active = isActive(leaf.slug);
+    const badge = badgeOf(leaf);
+    const label = t(leaf.key);
+    const icon = badge ? (
+      <Badge color="error" badgeContent={badge} max={99}>
+        {leaf.icon}
+      </Badge>
+    ) : (
+      leaf.icon
+    );
+
+    const button = (
+      <ListItemButton
+        component={NextLink}
+        href={hrefOf(leaf.slug)}
+        selected={active}
+        onClick={closeMobile}
+        aria-current={active ? "page" : undefined}
+        sx={{
+          minHeight: 46,
+          position: "relative",
+          justifyContent: opts.rail ? "center" : "flex-start",
+          px: opts.rail ? 0 : opts.nested ? 1.75 : 1.25,
+          color: "text.secondary",
+          "& .MuiListItemIcon-root": { color: "text.secondary", transition: "color .16s ease" },
+          "&:hover": { bgcolor: "action.hover" },
+          "&.Mui-selected": {
+            bgcolor: (th) => alpha(th.palette.primary.main, 0.1),
+            color: "primary.dark",
+            "& .MuiListItemIcon-root": { color: "primary.main" },
+            "&:hover": { bgcolor: (th) => alpha(th.palette.primary.main, 0.16) },
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              left: opts.rail ? 6 : 4,
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: 3,
+              height: 20,
+              borderRadius: 3,
+              bgcolor: "primary.main",
+            },
+          },
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: opts.rail ? 0 : 38, justifyContent: "center" }}>
+          {icon}
+        </ListItemIcon>
+        {!opts.rail && (
+          <ListItemText
+            primary={label}
+            primaryTypographyProps={{
+              fontWeight: active ? 700 : 600,
+              fontSize: "0.92rem",
+              noWrap: true,
+            }}
+          />
+        )}
+      </ListItemButton>
+    );
+
+    return (
+      <ListItem key={leaf.slug} disablePadding sx={{ mb: 0.25 }}>
+        {opts.rail ? (
+          <Tooltip title={label} placement="right" arrow>
+            {button}
+          </Tooltip>
+        ) : (
+          button
+        )}
+      </ListItem>
+    );
+  };
+
+  /* ── Group header + collapsible children ──────────────────────────────────── */
+  const groupBlock = (node: Extract<NodeDef, { kind: "group" }>) => {
+    const open = !!openGroups[node.id];
+    const hasActive = groupHasActive(node.children);
+    const label = t(node.key);
+    return (
+      <Box key={node.id} sx={{ mb: 0.25 }}>
+        <ListItem disablePadding>
+          <ListItemButton
+            onClick={() => toggleGroup(node.id)}
+            aria-expanded={open}
+            aria-controls={`nav-group-${node.id}`}
+            sx={{
+              minHeight: 46,
+              px: 1.25,
+              color: hasActive ? "primary.dark" : "text.secondary",
+              "& .MuiListItemIcon-root": {
+                color: hasActive ? "primary.main" : "text.secondary",
+                transition: "color .16s ease",
+              },
+              "&:hover": { bgcolor: "action.hover" },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 38, justifyContent: "center" }}>{node.icon}</ListItemIcon>
+            <ListItemText
+              primary={label}
+              primaryTypographyProps={{ fontWeight: hasActive ? 700 : 600, fontSize: "0.92rem", noWrap: true }}
+            />
+            {/* Dot when collapsed-and-active so the current section is still findable */}
+            {!open && hasActive && (
+              <Box
+                sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "primary.main", mr: 0.75 }}
+              />
+            )}
+            <ExpandMoreIcon
+              fontSize="small"
+              sx={{
+                color: "text.disabled",
+                transition: "transform .2s ease",
+                transform: open ? "rotate(0deg)" : "rotate(-90deg)",
+              }}
+            />
+          </ListItemButton>
+        </ListItem>
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <List id={`nav-group-${node.id}`} disablePadding sx={{ pl: 1.25, ml: 0.5, borderLeft: (th) => `1px solid ${th.palette.divider}` }}>
+            {node.children.map((c) => leafButton(c, { rail: false, nested: true }))}
+          </List>
+        </Collapse>
+      </Box>
+    );
+  };
+
+  /* ── Sidebar contents (expanded = grouped, rail = flat icons) ─────────────── */
+  const sidebar = (rail: boolean) => (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Toolbar sx={{ gap: 1.25 }}>
+      <Toolbar sx={{ gap: 1.25, justifyContent: rail ? "center" : "flex-start" }}>
         <Box
           sx={{
             width: 34,
@@ -94,90 +326,78 @@ export default function AdminShell({
         >
           <SchoolIcon fontSize="small" />
         </Box>
-        <Typography variant="subtitle1" fontWeight={750} noWrap sx={{ letterSpacing: "-0.01em" }}>
-          {centerName}
-        </Typography>
+        {!rail && (
+          <Typography variant="subtitle1" fontWeight={750} noWrap sx={{ letterSpacing: "-0.01em" }}>
+            {centerName}
+          </Typography>
+        )}
       </Toolbar>
       <Divider />
-      <List sx={{ flexGrow: 1, py: 1.25, px: 1 }}>
-        {nav.map((item) => {
-          const active = isActive(item.href);
-          return (
-            <ListItem key={item.href} disablePadding>
-              <ListItemButton
-                component={NextLink}
-                href={item.href}
-                selected={active}
-                onClick={() => setMobileOpen(false)}
-                sx={{
-                  mb: 0.25,
-                  minHeight: 46,
-                  position: "relative",
-                  color: "text.secondary",
-                  "& .MuiListItemIcon-root": { color: "text.secondary", transition: "color .16s ease" },
-                  "&:hover": { bgcolor: "action.hover" },
-                  "&.Mui-selected": {
-                    bgcolor: (th) => alpha(th.palette.primary.main, 0.1),
-                    color: "primary.dark",
-                    "& .MuiListItemIcon-root": { color: "primary.main" },
-                    "&:hover": { bgcolor: (th) => alpha(th.palette.primary.main, 0.16) },
-                    "&::before": {
-                      content: '""',
-                      position: "absolute",
-                      left: 4,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      width: 3,
-                      height: 20,
-                      borderRadius: 3,
-                      bgcolor: "primary.main",
-                    },
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 40 }}>
-                  {item.badge ? (
-                    <Badge color="error" badgeContent={item.badge} max={99}>
-                      {item.icon}
-                    </Badge>
-                  ) : (
-                    item.icon
-                  )}
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{ fontWeight: active ? 700 : 600, fontSize: "0.92rem" }}
-                />
-              </ListItemButton>
-            </ListItem>
-          );
-        })}
+      <List
+        component="nav"
+        aria-label={t("nav_main_label")}
+        sx={{ flexGrow: 1, py: 1.25, px: rail ? 1 : 1.25, overflowY: "auto" }}
+      >
+        {rail
+          ? ALL_LEAVES.map((leaf) => leafButton(leaf, { rail: true }))
+          : MODEL.map((node) =>
+              node.kind === "leaf"
+                ? leafButton(node, { rail: false })
+                : groupBlock(node)
+            )}
       </List>
+      <Divider />
+      {/* Collapse / expand rail — desktop only */}
+      <Box sx={{ p: 1 }}>
+        <Tooltip title={collapsed ? t("nav_expand_sidebar") : ""} placement="right" arrow>
+          <ListItemButton
+            onClick={() => setCollapsed((v) => !v)}
+            aria-label={collapsed ? t("nav_expand_sidebar") : t("nav_collapse_sidebar")}
+            sx={{ minHeight: 44, justifyContent: rail ? "center" : "flex-start", px: rail ? 0 : 1.25, borderRadius: 2 }}
+          >
+            <ListItemIcon sx={{ minWidth: rail ? 0 : 38, justifyContent: "center", color: "text.secondary" }}>
+              {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+            </ListItemIcon>
+            {!rail && (
+              <ListItemText
+                primary={t("nav_collapse_sidebar")}
+                primaryTypographyProps={{ fontWeight: 600, fontSize: "0.86rem", color: "text.secondary" }}
+              />
+            )}
+          </ListItemButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 
+  const desktopWidth = collapsed ? RAIL_WIDTH : DRAWER_WIDTH;
+
+  /* ── Bottom navigation (mobile) ───────────────────────────────────────────── */
+  const bottomLeaves = BOTTOM_SLUGS.map((slug) => ALL_LEAVES.find((l) => l.slug === slug)!);
+  const bottomValue = bottomLeaves.find((l) => isActive(l.slug))?.slug ?? false;
+
   return (
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
-      <AppBar position="fixed" color="primary" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
+      <AppBar position="fixed" color="primary" sx={{ zIndex: (th) => th.zIndex.drawer + 1 }}>
         <Toolbar>
           <IconButton
             color="inherit"
             edge="start"
-            aria-label="মেনু"
+            aria-label={t("menu")}
             onClick={() => setMobileOpen((v) => !v)}
             sx={{ mr: 1, display: { md: "none" } }}
           >
             <MenuIcon />
           </IconButton>
-          <SchoolIcon sx={{ mr: 1, display: { xs: "none", md: "block" } }} />
+          <SchoolIcon sx={{ mr: 1.25, display: { xs: "none", md: "block" } }} />
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }} noWrap>
-            {centerName}
+            {pageTitle}
           </Typography>
           <Tooltip title={t("nav_messages")}>
             <IconButton
               color="inherit"
               component={NextLink}
-              href={`${base}/messages`}
+              href={hrefOf("/messages")}
               aria-label={t("nav_messages")}
               sx={{ mr: 0.5 }}
             >
@@ -191,37 +411,51 @@ export default function AdminShell({
         </Toolbar>
       </AppBar>
 
-      {/* Mobile hamburger drawer: full nav */}
+      {/* Mobile slide-out drawer: full grouped nav */}
       <Drawer
         variant="temporary"
         open={mobileOpen}
-        onClose={() => setMobileOpen(false)}
+        onClose={closeMobile}
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: "block", md: "none" },
           "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" },
         }}
       >
-        {drawerContent}
+        {sidebar(false)}
       </Drawer>
 
-      {/* Desktop persistent sidebar */}
+      {/* Desktop persistent sidebar — collapsible to an icon rail */}
       <Drawer
         variant="permanent"
         open
         sx={{
           display: { xs: "none", md: "block" },
-          width: DRAWER_WIDTH,
+          width: desktopWidth,
           flexShrink: 0,
-          "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box", borderRight: "1px solid rgba(18,36,31,0.08)" },
+          whiteSpace: "nowrap",
+          "& .MuiDrawer-paper": {
+            width: desktopWidth,
+            boxSizing: "border-box",
+            overflowX: "hidden",
+            borderRight: (th) => `1px solid ${th.palette.divider}`,
+            transition: (th) =>
+              th.transitions.create("width", { duration: th.transitions.duration.shorter }),
+          },
         }}
       >
-        {drawerContent}
+        {sidebar(collapsed)}
       </Drawer>
 
       <Box
         component="main"
-        sx={{ flexGrow: 1, width: { md: `calc(100% - ${DRAWER_WIDTH}px)` }, minWidth: 0 }}
+        sx={{
+          flexGrow: 1,
+          width: { md: `calc(100% - ${desktopWidth}px)` },
+          minWidth: 0,
+          transition: (th) =>
+            th.transitions.create("width", { duration: th.transitions.duration.shorter }),
+        }}
       >
         <Toolbar />
         <Box
@@ -236,7 +470,7 @@ export default function AdminShell({
         </Box>
       </Box>
 
-      {/* Mobile bottom navigation: 5 primary destinations */}
+      {/* Mobile bottom navigation: 4 primary destinations + More */}
       <Paper
         elevation={3}
         sx={{
@@ -245,23 +479,41 @@ export default function AdminShell({
           bottom: 0,
           left: 0,
           right: 0,
-          zIndex: (t) => t.zIndex.appBar,
+          zIndex: (th) => th.zIndex.appBar,
           borderTop: "1px solid",
           borderColor: "divider",
         }}
       >
         <BottomNavigation value={bottomValue} showLabels sx={{ height: 64 }}>
-          {primary.map((item) => (
-            <BottomNavigationAction
-              key={item.href}
-              component={NextLink}
-              href={item.href}
-              value={item.href}
-              label={item.label}
-              icon={item.icon}
-              sx={{ minWidth: 0, "& .MuiBottomNavigationAction-label": { fontSize: "0.7rem" } }}
-            />
-          ))}
+          {bottomLeaves.map((leaf) => {
+            const badge = badgeOf(leaf);
+            return (
+              <BottomNavigationAction
+                key={leaf.slug}
+                component={NextLink}
+                href={hrefOf(leaf.slug)}
+                value={leaf.slug}
+                label={t(leaf.key)}
+                icon={
+                  badge ? (
+                    <Badge color="error" badgeContent={badge} max={99}>
+                      {leaf.icon}
+                    </Badge>
+                  ) : (
+                    leaf.icon
+                  )
+                }
+                sx={{ minWidth: 0, "& .MuiBottomNavigationAction-label": { fontSize: "0.7rem" } }}
+              />
+            );
+          })}
+          <BottomNavigationAction
+            value="more"
+            label={t("nav_more")}
+            icon={<MoreHorizIcon />}
+            onClick={() => setMobileOpen(true)}
+            sx={{ minWidth: 0, "& .MuiBottomNavigationAction-label": { fontSize: "0.7rem" } }}
+          />
         </BottomNavigation>
       </Paper>
     </Box>
