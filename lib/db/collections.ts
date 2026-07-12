@@ -24,6 +24,11 @@ export const Collections = {
   conversations: "conversations",
   messages: "messages",
   auditLog: "auditLog",
+  // Results module (exams / marks / grading). All tenant-scoped like the rest.
+  subjects: "subjects",
+  exams: "exams",
+  marks: "marks",
+  examSettings: "examSettings",
 } as const;
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections];
@@ -154,7 +159,9 @@ export type SmsKind =
   | "attendance_present"
   | "attendance_absent"
   | "payment_received"
-  | "payment_due";
+  | "payment_due"
+  // Sent (in batch) to guardians when an exam's results are published.
+  | "result_published";
 
 export type SmsLogDoc = {
   _id: ObjectId;
@@ -248,4 +255,87 @@ export type AuditLogDoc = {
   status: "success" | "failed";
   details?: Record<string, unknown>; // deleted counts, or the error message
   createdAt: Date;
+};
+
+/* ─────────────────────────── RESULTS MODULE ───────────────────────────
+ * Exam results: subjects (master data per class), exams, per-student marks,
+ * and a single tenant-level settings doc (grading scale / defaults). Every
+ * derived figure — total, percentage, grade, pass/fail — is computed on READ
+ * from these + the settings (see `lib/results/grade.ts`); nothing derived is
+ * stored, so editing a mark or a grading band recalculates instantly. All are
+ * tenant-scoped via `forTenant`, exactly like the finance collections.
+ */
+
+/** A subject offered in a class (e.g. "Bangla", "Mathematics"). Master data. */
+export type SubjectDoc = {
+  _id: ObjectId;
+  tenantId: string;
+  classId: string;
+  name: string;
+  order: number;
+};
+
+export type ExamStatus = "draft" | "published";
+
+/**
+ * One exam for a class. `totalMarks` / `passMarks` are per-subject (each subject
+ * is marked out of `totalMarks` and passes at `passMarks`), defaulted from
+ * settings at creation. `subjectIds` are the subjects included, in display order.
+ * Publishing is one-way (draft → published) and triggers guardian notifications.
+ */
+export type ExamDoc = {
+  _id: ObjectId;
+  tenantId: string;
+  classId: string;
+  name: string;
+  examType: string; // free label chosen from settings presets (e.g. "Model Test")
+  date: string; // YYYY-MM-DD
+  totalMarks: number; // per subject
+  passMarks: number; // per subject
+  subjectIds: string[];
+  status: ExamStatus;
+  createdAt: Date;
+  publishedAt: Date | null;
+};
+
+/** A single subject's obtained mark for a student in an exam. */
+export type MarkEntry = { subjectId: string; obtained: number | null }; // null = not entered / absent
+
+/**
+ * All of one student's marks for one exam, in a single document (mirrors
+ * PaymentDoc's per-student-per-month shape). Upsert target: {tenantId, examId,
+ * studentId}. Bulk mark entry writes the whole class in one `bulkWrite`.
+ */
+export type MarkDoc = {
+  _id: ObjectId;
+  tenantId: string;
+  examId: string;
+  studentId: string;
+  classId: string;
+  entries: MarkEntry[];
+  updatedAt: Date;
+};
+
+/** One grading band: the minimum percentage that earns `grade` + its points. */
+export type GradeBand = { grade: string; minPct: number; point: number };
+
+export type PassRule = "per_subject" | "overall";
+
+/**
+ * Single per-tenant Results settings document (`scope: "exam"`), reused as the
+ * source of defaults across Exam Setup, Results and Certificates. Mirrors the
+ * `themeSettings` single-doc pattern but tenant-scoped.
+ */
+export type ExamSettingsDoc = {
+  _id: ObjectId;
+  tenantId: string;
+  scope: "exam";
+  gradingScale: GradeBand[]; // highest band first; last band is the fail grade
+  passRule: PassRule; // per_subject = pass every subject; overall = aggregate %
+  defaultTotalMarks: number;
+  defaultPassMarks: number;
+  examTypes: string[]; // preset exam-type labels for the Exam Setup dropdown
+  certificateTitle: string; // heading printed on certificates
+  notifyOnPublish: boolean; // send guardians an SMS when results are published
+  updatedAt: Date;
 };

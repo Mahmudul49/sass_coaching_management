@@ -84,5 +84,21 @@ export async function ensureIndexes(db: Db): Promise<void> {
     // auditLog: recent-first, and per-center history.
     db.collection(Collections.auditLog).createIndex({ createdAt: -1 }),
     db.collection(Collections.auditLog).createIndex({ tenantId: 1, createdAt: -1 }),
+
+    // ── Results module ──────────────────────────────────────────────────────
+    // subjects: list a class's subjects in display order.
+    db.collection(Collections.subjects).createIndex({ tenantId: 1, classId: 1, order: 1 }),
+    // exams: the class exam list, and the dashboard's status/date views.
+    db.collection(Collections.exams).createIndex({ tenantId: 1, classId: 1, status: 1 }),
+    db.collection(Collections.exams).createIndex({ tenantId: 1, status: 1, date: -1 }),
+    // marks: one record per student per exam — the bulk-upsert target. This
+    // unique compound also serves "all marks for an exam" (tenantId+examId prefix).
+    db
+      .collection(Collections.marks)
+      .createIndex({ tenantId: 1, examId: 1, studentId: 1 }, { unique: true }),
+    // marks: a student's result history across exams.
+    db.collection(Collections.marks).createIndex({ tenantId: 1, studentId: 1 }),
+    // examSettings: a single settings doc per tenant.
+    db.collection(Collections.examSettings).createIndex({ tenantId: 1, scope: 1 }, { unique: true }),
   ]);
 }

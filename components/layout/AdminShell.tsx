@@ -27,6 +27,7 @@ import CategoryIcon from "@mui/icons-material/Category";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import GroupsIcon from "@mui/icons-material/Groups";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
+import GradingIcon from "@mui/icons-material/Grading";
 import PaidIcon from "@mui/icons-material/Paid";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -68,6 +69,7 @@ const MODEL: NodeDef[] = [
     icon: <MenuBookIcon />,
     children: [
       { key: "nav_attendance", slug: "/attendance", icon: <FactCheckIcon /> },
+      { key: "nav_results", slug: "/results", icon: <GradingIcon /> },
       { key: "nav_classes", slug: "/classes", icon: <ClassIcon /> },
       { key: "nav_sections", slug: "/sections", icon: <CategoryIcon /> },
     ],

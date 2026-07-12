@@ -35,4 +35,15 @@ export const smsTemplates = {
       args.year
     )} মাসের ${taka(args.due)} ফি বাকি আছে। অনুগ্রহ করে পরিশোধ করুন।`;
   },
+  resultPublished(args: {
+    centerName: string;
+    studentName: string;
+    examName: string;
+    gpa: string; // grade / GPA label, already formatted
+    result: string; // e.g. "উত্তীর্ণ" / "অনুত্তীর্ণ"
+  }) {
+    return `${args.centerName}: ${args.studentName} এর ${args.examName} পরীক্ষার ফল প্রকাশিত হয়েছে — ফলাফল: ${args.result}, GPA: ${toBnDigits(
+      args.gpa
+    )}। অভিনন্দন!`;
+  },
 };
