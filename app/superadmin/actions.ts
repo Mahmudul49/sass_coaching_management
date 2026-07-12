@@ -5,7 +5,7 @@ import { Collections, type TenantDoc, type UserDoc } from "@/lib/db/collections"
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { requireSuperAdmin } from "@/lib/auth/guards";
 import { invalidateTenant } from "@/lib/tenant/server";
-import { runCleanCenterData } from "@/lib/superadmin/cleanData";
+import { runCleanCenterData, runDeleteCenter } from "@/lib/superadmin/cleanData";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -218,6 +218,63 @@ export async function cleanCenterData(input: {
   if (!res.ok) return { ok: false, error: res.error ?? "Cleanup failed." };
 
   // The center now has a fresh database — refresh cached tenant + student counts.
+  invalidateTenant(tenant.slug);
+  revalidatePath("/superadmin");
+  return { ok: true, deleted: res.deleted, total: res.total };
+}
+
+/**
+ * DELETE CENTER (SuperAdmin only). Irreversibly removes a tenant ENTIRELY —
+ * operational data, its users (admin) and the tenant profile — freeing the slug.
+ * Requires the exact phrase "DELETE CENTER" AND the acting super-admin's own
+ * password, both re-verified here on the server (client checks are UX only and
+ * never trusted). Only this tenant's data is touched; other tenants are safe.
+ */
+export async function deleteCenter(input: {
+  tenantId: string;
+  confirmText: string;
+  password: string;
+}): Promise<CleanDataResult> {
+  const { userId, name } = await requireSuperAdmin(); // 403s non-superadmins
+
+  if ((input.confirmText ?? "").trim() !== "DELETE CENTER") {
+    return { ok: false, error: 'Type "DELETE CENTER" exactly to confirm.' };
+  }
+  if (!input.password) return { ok: false, error: "Enter your Super Admin password." };
+
+  const db = await getDb();
+  const { ObjectId } = await import("mongodb");
+
+  let tenantOid;
+  try {
+    tenantOid = new ObjectId(input.tenantId);
+  } catch {
+    return { ok: false, error: "Invalid center." };
+  }
+  const tenant = await db.collection<TenantDoc>(Collections.tenants).findOne({ _id: tenantOid });
+  if (!tenant) return { ok: false, error: "Center not found." };
+
+  // Re-verify the acting super-admin's password against their own record.
+  let actorOid;
+  try {
+    actorOid = new ObjectId(userId);
+  } catch {
+    return { ok: false, error: "Not authorized." };
+  }
+  const actor = await db
+    .collection<UserDoc>(Collections.users)
+    .findOne({ _id: actorOid, tenantId: null, role: "superadmin" });
+  if (!actor) return { ok: false, error: "Not authorized." };
+  const passwordOk = await verifyPassword(input.password, actor.passwordHash);
+  if (!passwordOk) return { ok: false, error: "Password is incorrect." };
+
+  const res = await runDeleteCenter(
+    { id: tenant._id.toString(), slug: tenant.slug, name: tenant.name },
+    { id: userId, name }
+  );
+  if (!res.ok) return { ok: false, error: res.error ?? "Deletion failed." };
+
+  // The center is gone — drop its cached tenant entry and refresh the list.
   invalidateTenant(tenant.slug);
   revalidatePath("/superadmin");
   return { ok: true, deleted: res.deleted, total: res.total };
