@@ -228,16 +228,17 @@ export type SetupStatus = {
 };
 
 export async function getSetupStatus(db: ScopedDb): Promise<SetupStatus> {
-  const [classes, sections, fees, students] = await Promise.all([
-    db.collection(Collections.classes).countDocuments({}),
-    db.collection(Collections.sections).countDocuments({}),
-    db.collection(Collections.feeStructure).countDocuments({}),
-    db.collection(Collections.students).countDocuments({}),
+  // Setup status only needs to know whether ANY doc exists, not the exact count.
+  // `limit: 1` lets Mongo stop at the first match instead of scanning the whole
+  // collection — critical for `students` (up to 100k) on every dashboard load.
+  const exists = (name: Parameters<typeof db.collection>[0]) =>
+    db.collection(name).countDocuments({}, { limit: 1 }).then((n) => n > 0);
+  const [hasClasses, hasSections, hasFees, hasStudents] = await Promise.all([
+    exists(Collections.classes),
+    exists(Collections.sections),
+    exists(Collections.feeStructure),
+    exists(Collections.students),
   ]);
-  const hasClasses = classes > 0;
-  const hasSections = sections > 0;
-  const hasFees = fees > 0;
-  const hasStudents = students > 0;
   return {
     hasClasses,
     hasSections,
@@ -356,7 +357,7 @@ export async function buildPaymentRows(
     getFeeForClass(db, classId),
     db.collection<StudentDoc>(Collections.students).findArray(
       { classId, active: true },
-      { sort: { roll: 1 } }
+      { sort: { roll: 1 }, projection: { name: 1, roll: 1, sectionId: 1, phone: 1 } }
     ) as Promise<StudentDoc[]>,
     listSections(db),
   ]);
@@ -926,8 +927,6 @@ export async function getDueReportAll(
 }
 
 export type DashboardStats = {
-  activeStudents: number;
-  totalStudents: number;
   todayCollection: number;
   monthCollection: number;
   monthDue: number;
@@ -947,9 +946,11 @@ export async function getDashboardStats(
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
-  const [activeStudents, totalStudents, yearAggCur, todayAggCur] = await Promise.all([
-    db.collection(Collections.students).countDocuments({ active: true }),
-    db.collection(Collections.students).countDocuments({}),
+  // Student counts are intentionally NOT fetched here: the dashboard already
+  // derives the active-student total from `getActiveCountsByClass` (needed for the
+  // per-class overview), so counting the 100k-row students collection again would
+  // be a duplicate scan. This function only touches the payments collection.
+  const [yearAggCur, todayAggCur] = await Promise.all([
     db
       .collection<PaymentDoc>(Collections.payments)
       .aggregate<{ _id: number; paid: number; total: number }>([
@@ -984,8 +985,6 @@ export async function getDashboardStats(
   const todayCollection = (await todayAggCur.toArray())[0]?.paid ?? 0;
 
   return {
-    activeStudents,
-    totalStudents,
     todayCollection,
     monthCollection,
     monthDue,

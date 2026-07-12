@@ -23,11 +23,11 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
-  title: "Coaching Manager",
-  description: "Multi-tenant coaching center management",
+  title: "EduPilot — Smart School & Coaching Management Software",
+  description: "Smart School & Coaching Management Software",
   manifest: "/manifest.webmanifest",
-  applicationName: "Coaching Manager",
-  appleWebApp: { capable: true, title: "Coaching Manager", statusBarStyle: "default" },
+  applicationName: "EduPilot",
+  appleWebApp: { capable: true, title: "EduPilot", statusBarStyle: "default" },
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },

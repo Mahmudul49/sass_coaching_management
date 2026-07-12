@@ -84,7 +84,7 @@ export default function ConsoleShell({
         <AdminPanelSettingsIcon />
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="subtitle1" fontWeight={800} noWrap sx={{ lineHeight: 1.2 }}>
-            Coaching Manager
+            EduPilot
           </Typography>
           <Typography variant="caption" sx={{ opacity: 0.7 }}>
             Admin Console

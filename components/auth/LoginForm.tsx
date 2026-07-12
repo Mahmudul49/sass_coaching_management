@@ -101,7 +101,7 @@ export default function LoginForm({
               <SchoolIcon />
             </Box>
             <Typography sx={{ fontWeight: 700, letterSpacing: "-0.01em" }}>
-              Coaching Manager
+              EduPilot
             </Typography>
           </Stack>
         </Box>
@@ -117,7 +117,7 @@ export default function LoginForm({
               mb: 2,
             }}
           >
-            Run your coaching center with clarity.
+            Smart School &amp; Coaching Management Software.
           </Typography>
           <Stack spacing={1.5} sx={{ mt: 3 }}>
             {HIGHLIGHTS.map((h) => (
@@ -144,7 +144,7 @@ export default function LoginForm({
         </Box>
 
         <Typography variant="caption" sx={{ position: "relative", opacity: 0.7 }}>
-          © {new Date().getFullYear()} Coaching Manager
+          © {new Date().getFullYear()} EduPilot
         </Typography>
       </Box>
 

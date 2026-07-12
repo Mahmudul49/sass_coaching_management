@@ -14,16 +14,15 @@ import { requireAdmin } from "@/lib/auth/guards";
 import {
   getSetupStatus,
   getDashboardStats,
-  listStudents,
+  getActiveCountsByClass,
   listClasses,
-  listSections,
 } from "@/lib/admin/queries";
 import LinearProgress from "@mui/material/LinearProgress";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import StatCard from "@/components/ui/StatCard";
 import SetupChecklist from "@/components/admin/SetupChecklist";
-import StudentsManager from "@/components/admin/StudentsManager";
+import StudentsOverview from "@/components/admin/StudentsOverview";
 import MonthlyCollectionChart from "@/components/admin/MonthlyCollectionChart";
 import QuickActions from "@/components/admin/QuickActions";
 import { I18nProvider } from "@/components/providers/I18nProvider";
@@ -47,15 +46,18 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
 
   const year = currentYear();
   const month = currentMonth();
-  const [stats, students, classes, sections] = await Promise.all([
+  // Scale note: the dashboard shows an aggregate students overview (per-class
+  // active counts) instead of loading every student row — full management lives
+  // on the paginated /students page. Keeps the landing payload constant at 100k+.
+  const [stats, activeCounts, classes] = await Promise.all([
     getDashboardStats(db, year, month),
-    listStudents(db),
+    getActiveCountsByClass(db),
     listClasses(db),
-    listSections(db),
   ]);
+  const totalActive = Object.values(activeCounts).reduce((a, b) => a + b, 0);
 
   const cards = [
-    { label: t("active_students"), value: toBnDigits(stats.activeStudents, "en"), icon: <GroupsIcon />, color: "#0F7A6B" },
+    { label: t("active_students"), value: toBnDigits(totalActive, "en"), icon: <GroupsIcon />, color: "#0F7A6B" },
     { label: t("today_collection"), value: taka(stats.todayCollection, "en"), icon: <TodayIcon />, color: "#0284C7" },
     { label: t("month_collection"), value: taka(stats.monthCollection, "en"), icon: <PaidIcon />, color: "#16A34A" },
     { label: t("month_due"), value: taka(stats.monthDue, "en"), icon: <MoneyOffIcon />, color: "#DC2626" },
@@ -127,7 +129,12 @@ export default async function AdminDashboard({ params }: { params: Promise<{ ten
 
       {!status.complete && <SetupChecklist status={status} />}
 
-      <StudentsManager students={students} classes={classes} sections={sections} />
+      <StudentsOverview
+        classes={classes}
+        activeCounts={activeCounts}
+        totalActive={totalActive}
+        studentsPath={tenantAdminPath(tenant, "students")}
+      />
     </Stack>
     </I18nProvider>
   );

@@ -1,7 +1,8 @@
-# sass_coaching_management
+# EduPilot
 
-Multi-tenant **Coaching Management SaaS** for coaching centers in Bangladesh.
-Bengali UI, mobile-first, built for non-technical center owners.
+**EduPilot — Smart School & Coaching Management Software.** Multi-tenant SaaS for
+schools and coaching centers in Bangladesh. Mobile-first, built for non-technical
+institution owners.
 
 > **Status:** Complete. Super-admin (tenant/admin management), admin setup
 > wizard, master data + bulk Excel import, attendance (optional SMS), payments

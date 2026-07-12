@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Coaching Manager",
-  "short_name": "Coaching Manager",
-  "description": "Coaching center management",
+  "name": "EduPilot",
+  "short_name": "EduPilot",
+  "description": "Smart School & Coaching Management Software",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

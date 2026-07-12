@@ -11,7 +11,7 @@ export default async function LoginPage() {
   return (
     <LoginForm
       slug=""
-      title="Coaching Manager"
+      title="EduPilot"
       subtitle="Admin Console Login"
     />
   );
