@@ -24,7 +24,7 @@ import type {
 } from "@/lib/admin/queries";
 import { tenantAdminBaseFromPath } from "@/components/layout/tenantAdminBase";
 
-const STEPS = ["ক্লাস", "শাখা", "ফি স্ট্রাকচার", "শিক্ষার্থী"];
+const STEPS = ["Classes", "Sections", "Fee Structure", "Students"];
 
 export default function SetupWizard({
   classes,
@@ -49,9 +49,9 @@ export default function SetupWizard({
   return (
     <Stack spacing={2}>
       <Box>
-        <Typography variant="h5">স্বাগতম! চলুন সেটআপ করি</Typography>
+        <Typography variant="h5">Welcome! Let&apos;s get set up</Typography>
         <Typography variant="body2" color="text.secondary">
-          ৪টি সহজ ধাপে আপনার কোচিং সেন্টার প্রস্তুত করুন।
+          Prepare your coaching center in 4 easy steps.
         </Typography>
       </Box>
 
@@ -77,7 +77,7 @@ export default function SetupWizard({
       </Box>
 
       {active === 1 && !status.hasClasses && (
-        <Alert severity="info">আগে অন্তত একটি ক্লাস যোগ করুন।</Alert>
+        <Alert severity="info">Add at least one class first.</Alert>
       )}
 
       <Card>
@@ -89,18 +89,18 @@ export default function SetupWizard({
               disabled={active === 0}
               onClick={() => setActive((s) => s - 1)}
             >
-              পূর্ববর্তী
+              Previous
             </Button>
             {active < STEPS.length - 1 ? (
               <Stack direction="row" spacing={1}>
                 <Button variant="text" color="inherit" onClick={() => router.push(adminBase)}>
-                  পরে করব
+                  I&apos;ll do it later
                 </Button>
-                <Button onClick={() => setActive((s) => s + 1)}>পরবর্তী</Button>
+                <Button onClick={() => setActive((s) => s + 1)}>Next</Button>
               </Stack>
             ) : (
               <Button color="success" onClick={() => router.push(adminBase)}>
-                সম্পন্ন করুন
+                Finish
               </Button>
             )}
           </Stack>

@@ -5,7 +5,6 @@ import ThemeRegistry from "@/components/providers/ThemeRegistry";
 import ServiceWorkerRegister from "@/components/providers/ServiceWorkerRegister";
 import InstallPrompt from "@/components/providers/InstallPrompt";
 import { I18nProvider } from "@/components/providers/I18nProvider";
-import { getLocale } from "@/lib/i18n/server";
 
 const hindSiliguri = Hind_Siliguri({
   subsets: ["bengali", "latin"],
@@ -47,13 +46,12 @@ export const viewport: Viewport = {
   themeColor: "#0F7A6B",
 };
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  const locale = await getLocale();
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang={locale} className={`${hindSiliguri.variable} ${bricolage.variable}`}>
+    <html lang="en" className={`${hindSiliguri.variable} ${bricolage.variable}`}>
       <body style={{ margin: 0 }}>
         <ThemeRegistry>
-          <I18nProvider initialLocale={locale}>
+          <I18nProvider>
             {children}
             <InstallPrompt />
           </I18nProvider>

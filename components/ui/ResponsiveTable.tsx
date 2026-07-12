@@ -31,7 +31,7 @@ export default function ResponsiveTable<T extends WithId>({
   columns,
   renderCard,
   filterText,
-  searchPlaceholder = "খুঁজুন...",
+  searchPlaceholder = "Search...",
   extraToolbar,
   pageSize = 25,
   pageSizeOptions = [25, 50, 100],
@@ -103,7 +103,7 @@ export default function ResponsiveTable<T extends WithId>({
       <Box sx={{ display: { xs: "block", md: "none" } }}>
         {filtered.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }}>
-            কিছু পাওয়া যায়নি।
+            Nothing found.
           </Typography>
         ) : (
           <Stack spacing={1.25}>{filtered.map((r) => <Box key={r.id}>{renderCard(r)}</Box>)}</Stack>

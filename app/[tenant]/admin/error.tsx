@@ -21,9 +21,9 @@ export default function AdminError({
   return (
     <Box sx={{ minHeight: "60dvh", display: "grid", placeItems: "center" }}>
       <ErrorState
-        title="কিছু একটা সমস্যা হয়েছে / Something went wrong"
-        description="পেজটি লোড করা যায়নি। আবার চেষ্টা করুন। / We couldn't load this page. Please try again."
-        retryLabel="আবার চেষ্টা করুন / Try again"
+        title="Something went wrong"
+        description="We couldn't load this page. Please try again."
+        retryLabel="Try again"
         onRetry={reset}
       />
     </Box>

@@ -1,8 +1,7 @@
 "use client";
-import { createContext, useContext, useCallback, useMemo, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { dict, type MessageKey } from "@/lib/i18n/dictionaries";
-import { LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
+import type { Locale } from "@/lib/i18n/config";
 
 type I18nApi = {
   locale: Locale;
@@ -11,44 +10,31 @@ type I18nApi = {
   toggle: () => void;
 };
 
+const noop = () => {};
 const I18nContext = createContext<I18nApi | null>(null);
 
 /**
- * Client i18n. `initialLocale` comes from the cookie (read on the server) so
- * SSR and client agree. Switching writes the cookie + `router.refresh()` so
- * server components re-render in the new language too — near-instant, no full
- * page reload.
+ * English is the only supported language. This provider preserves the `useI18n`
+ * contract (`{ locale, t, setLocale, toggle }`) so the ~50 existing call sites
+ * compile unchanged, while always resolving the English catalogue. `setLocale`
+ * and `toggle` are no-ops — the language switcher has been removed.
+ * `initialLocale` is accepted and ignored for backward compatibility.
  */
 export function I18nProvider({
-  initialLocale,
   children,
 }: {
-  initialLocale: Locale;
+  initialLocale?: Locale;
   children: ReactNode;
 }) {
-  const router = useRouter();
-  const [locale, setLocaleState] = useState<Locale>(initialLocale);
-
-  const setLocale = useCallback(
-    (l: Locale) => {
-      document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=31536000; samesite=lax`;
-      setLocaleState(l);
-      document.documentElement.lang = l;
-      router.refresh();
-    },
-    [router]
-  );
-
   const api = useMemo<I18nApi>(
     () => ({
-      locale,
-      t: (k) => dict[locale][k] ?? dict.bn[k] ?? k,
-      setLocale,
-      toggle: () => setLocale(locale === "bn" ? "en" : "bn"),
+      locale: "en",
+      t: (k) => dict.en[k] ?? k,
+      setLocale: noop,
+      toggle: noop,
     }),
-    [locale, setLocale]
+    []
   );
-
   return <I18nContext.Provider value={api}>{children}</I18nContext.Provider>;
 }
 

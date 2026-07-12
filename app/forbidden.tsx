@@ -46,16 +46,16 @@ export default function Forbidden() {
             mb: 1,
           }}
         >
-          ৪০৩
+          403
         </Typography>
         <Typography variant="h6" sx={{ mb: 0.5 }}>
-          প্রবেশাধিকার নেই / Access denied
+          Access denied
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, lineHeight: 1.6 }}>
-          এই পেজে আপনার প্রবেশের অনুমতি নেই। / You don&apos;t have permission to view this page.
+          You don&apos;t have permission to view this page.
         </Typography>
         <Button component={NextLink} href="/login" size="large">
-          লগইন পেজে যান / Go to login
+          Go to login
         </Button>
       </Box>
     </Box>

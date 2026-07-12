@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
 import InputAdornment from "@mui/material/InputAdornment";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -11,15 +12,23 @@ import TableHead from "@mui/material/TableHead";
 import TableBody from "@mui/material/TableBody";
 import TableRow from "@mui/material/TableRow";
 import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableSortLabel from "@mui/material/TableSortLabel";
+import TablePagination from "@mui/material/TablePagination";
 import SearchIcon from "@mui/icons-material/Search";
 import DownloadIcon from "@mui/icons-material/Download";
 import PrintIcon from "@mui/icons-material/Print";
+import GroupsIcon from "@mui/icons-material/Groups";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import PaidIcon from "@mui/icons-material/Paid";
+import ReportProblemIcon from "@mui/icons-material/ReportProblem";
+import SavingsIcon from "@mui/icons-material/Savings";
+import StatCard from "@/components/ui/StatCard";
+import DataCard from "@/components/ui/DataCard";
 import EmptyState from "@/components/ui/EmptyState";
 import { exportAoa } from "@/lib/excel";
-import { useI18n } from "@/components/providers/I18nProvider";
-import type { MessageKey } from "@/lib/i18n/dictionaries";
 import type { DueRow } from "@/lib/admin/queries";
-import { monthName as monthNameFmt, taka as takaFmt, toBnDigits as bnFmt } from "@/lib/format";
+import { monthName as monthNameFmt, taka as takaFmt } from "@/lib/format";
 
 type MatrixStudent = {
   studentId: string;
@@ -32,35 +41,41 @@ type MatrixStudent = {
   collected: number; // Σ actual cash received
 };
 
+type StatusKind = "paid" | "partial" | "due" | "advance";
+type SortKey = "name" | "roll" | "className" | "payable" | "collected" | "due" | "pct" | "status";
+
 const ymKey = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}`;
 
-/**
- * Smart status from PAYABLE vs actual COLLECTED (allocation totals):
- *   collected 0 → Due; > payable → Overpayment; == payable → Paid; else Partial.
- */
-function statusOf(
-  payable: number,
-  collected: number,
-  t: (k: MessageKey) => string
-): { label: string; color: "success" | "warning" | "error" | "info" } {
-  if (collected <= 0) return { label: t("c_due"), color: "error" };
-  if (collected > payable) return { label: t("mx_overpaid"), color: "info" };
-  if (collected >= payable) return { label: t("c_paid"), color: "success" };
-  return { label: t("c_partial"), color: "warning" };
+const STATUS_META: Record<StatusKind, { label: string; color: "success" | "warning" | "error" | "info" }> = {
+  paid: { label: "Paid", color: "success" },
+  partial: { label: "Partial", color: "warning" },
+  due: { label: "Due", color: "error" },
+  advance: { label: "Advance", color: "info" },
+};
+
+/** Category from PAYABLE vs actual COLLECTED (allocation totals). */
+function statusOf(payable: number, collected: number): StatusKind {
+  if (collected <= 0) return payable > 0 ? "due" : "paid";
+  if (collected > payable) return "advance";
+  if (collected >= payable) return "paid";
+  return "partial";
 }
 
 /**
  * Pivot the (student × month) rows into a matrix: one row per student, one
  * column per month (cell = actual cash collected that month), plus Payable /
- * Paid / Due / % / Status and a totals footer. Overpayment shows as advance.
+ * Collected / Due / % / Status, summary cards, a totals footer, in-place
+ * search + status filter, column sorting, pagination and Excel/PDF export.
  */
 export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; centerName: string }) {
-  const { t, locale } = useI18n();
-  const en = locale === "en";
-  const taka = (n: number) => takaFmt(n, locale);
-  const toBnDigits = (v: string | number) => bnFmt(v, locale);
-  const monthName = (m: number) => monthNameFmt(m, locale);
+  const taka = (n: number) => takaFmt(n);
+  const monthName = (m: number) => monthNameFmt(m);
+
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | StatusKind>("");
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "className", dir: "asc" });
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   const { months, students } = useMemo(() => {
     const monthSet = new Map<string, { year: number; month: number }>();
@@ -89,36 +104,90 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
     const months = [...monthSet.entries()]
       .map(([key, v]) => ({ key, ...v }))
       .sort((a, b) => a.year - b.year || a.month - b.month);
-    const students = [...map.values()].sort(
-      (a, b) => a.className.localeCompare(b.className) || a.roll.localeCompare(b.roll)
-    );
+    const students = [...map.values()];
     return { months, students };
   }, [rows]);
 
-  const shown = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter((s) => `${s.name} ${s.roll}`.toLowerCase().includes(q));
-  }, [students, search]);
+  const dueOf = (s: MatrixStudent) => Math.max(0, s.payable - s.collected);
+  const advanceOf = (s: MatrixStudent) => Math.max(0, s.collected - s.payable);
+  const pctOf = (s: MatrixStudent) =>
+    s.payable > 0 ? Math.round((Math.min(s.collected, s.payable) / s.payable) * 100) : 100;
 
-  // Footer totals (over the currently shown students).
+  // Search + status filter (applies to summary cards, table and export alike).
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return students.filter((s) => {
+      if (q && !`${s.name} ${s.roll} ${s.className} ${s.sectionName}`.toLowerCase().includes(q)) return false;
+      if (statusFilter && statusOf(s.payable, s.collected) !== statusFilter) return false;
+      return true;
+    });
+  }, [students, search, statusFilter]);
+
+  // Sorting (stable on the filtered set).
+  const sorted = useMemo(() => {
+    const val = (s: MatrixStudent): string | number => {
+      switch (sort.key) {
+        case "name":
+          return s.name.toLowerCase();
+        case "roll":
+          return s.roll;
+        case "className":
+          return `${s.className} ${s.roll}`.toLowerCase();
+        case "payable":
+          return s.payable;
+        case "collected":
+          return s.collected;
+        case "due":
+          return dueOf(s);
+        case "pct":
+          return pctOf(s);
+        case "status":
+          return STATUS_META[statusOf(s.payable, s.collected)].label;
+      }
+    };
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const va = val(a);
+      const vb = val(b);
+      if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
+      return String(va).localeCompare(String(vb)) * dir;
+    });
+  }, [filtered, sort]);
+
+  const paged = useMemo(
+    () => sorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [sorted, page, rowsPerPage]
+  );
+
+  // Summary + footer totals — over the FILTERED set (not just the current page).
   const totals = useMemo(() => {
     const perMonth: Record<string, number> = {};
     let payable = 0;
     let collected = 0;
-    for (const s of shown) {
+    let due = 0;
+    let advance = 0;
+    for (const s of filtered) {
       payable += s.payable;
       collected += s.collected;
+      due += dueOf(s);
+      advance += advanceOf(s);
       for (const m of months) perMonth[m.key] = (perMonth[m.key] ?? 0) + (s.cells[m.key] ?? 0);
     }
-    const due = shown.reduce((sum, s) => sum + Math.max(0, s.payable - s.collected), 0);
-    const advance = shown.reduce((sum, s) => sum + Math.max(0, s.collected - s.payable), 0);
-    return { perMonth, payable, collected, due, advance };
-  }, [shown, months]);
+    return { perMonth, payable, collected, due, advance, count: filtered.length };
+  }, [filtered, months]);
 
-  const dueOf = (s: MatrixStudent) => Math.max(0, s.payable - s.collected);
-  const pctOf = (s: MatrixStudent) =>
-    s.payable > 0 ? Math.round((Math.min(s.collected, s.payable) / s.payable) * 100) : 0;
+  function onSearch(v: string) {
+    setSearch(v);
+    setPage(0);
+  }
+  function onStatusFilter(v: "" | StatusKind) {
+    setStatusFilter(v);
+    setPage(0);
+  }
+  function onSort(key: SortKey) {
+    setSort((p) => (p.key === key ? { key, dir: p.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+    setPage(0);
+  }
 
   function buildAoa() {
     const header = [
@@ -134,7 +203,7 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
       "PERCENT",
       "STATUS",
     ];
-    const body = shown.map((s) => [
+    const body = sorted.map((s) => [
       s.name,
       s.roll,
       s.className,
@@ -143,9 +212,9 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
       s.payable,
       s.collected,
       dueOf(s),
-      Math.max(0, s.collected - s.payable),
+      advanceOf(s),
       `${pctOf(s)}%`,
-      statusOf(s.payable, s.collected, t).label,
+      STATUS_META[statusOf(s.payable, s.collected)].label,
     ]);
     const totalRow = [
       "TOTAL",
@@ -160,14 +229,10 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
       "",
       "",
     ];
-    return [
-      ["Payment Matrix"],
-      [`Institution : ${centerName}`],
-      [],
-      header,
-      ...body,
-      totalRow,
-    ] as (string | number)[][];
+    return [["Payment Matrix"], [`Institution : ${centerName}`], [], header, ...body, totalRow] as (
+      | string
+      | number
+    )[][];
   }
 
   function exportExcel() {
@@ -179,27 +244,27 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
     if (!w) return;
     const th = (s: string) => `<th>${s}</th>`;
     const head =
-      th(t("c_name")) +
-      th(t("c_roll")) +
-      th(t("c_class")) +
+      th("Name") +
+      th("Roll") +
+      th("Class") +
       months.map((m) => th(`${monthName(m.month)}`)).join("") +
-      th(t("mx_payable")) +
-      th(t("c_paid")) +
-      th(t("c_due")) +
+      th("Payable") +
+      th("Collected") +
+      th("Due") +
       th("%") +
-      th(t("c_status"));
-    const body = shown
+      th("Status");
+    const body = sorted
       .map((s) => {
         const cells = months.map((m) => `<td class="r">${taka(s.cells[m.key] ?? 0)}</td>`).join("");
-        return `<tr><td>${s.name}</td><td>${toBnDigits(s.roll)}</td><td>${s.className}</td>${cells}<td class="r">${taka(
+        return `<tr><td>${s.name}</td><td>${s.roll}</td><td>${s.className}</td>${cells}<td class="r">${taka(
           s.payable
-        )}</td><td class="r">${taka(s.collected)}</td><td class="r">${taka(dueOf(s))}</td><td class="r">${toBnDigits(
-          pctOf(s)
-        )}%</td><td>${statusOf(s.payable, s.collected, t).label}</td></tr>`;
+        )}</td><td class="r">${taka(s.collected)}</td><td class="r">${taka(dueOf(s))}</td><td class="r">${pctOf(
+          s
+        )}%</td><td>${STATUS_META[statusOf(s.payable, s.collected)].label}</td></tr>`;
       })
       .join("");
     const monthTotals = months.map((m) => `<td class="r">${taka(totals.perMonth[m.key] ?? 0)}</td>`).join("");
-    const footer = `<tr class="tot"><td>${t("c_total")}</td><td></td><td></td>${monthTotals}<td class="r">${taka(
+    const footer = `<tr class="tot"><td>Total</td><td></td><td></td>${monthTotals}<td class="r">${taka(
       totals.payable
     )}</td><td class="r">${taka(totals.collected)}</td><td class="r">${taka(totals.due)}</td><td></td><td></td></tr>`;
     w.document.write(
@@ -208,9 +273,9 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
       table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:4px 6px}
       th{background:#f0f0f0}.r{text-align:right}.tot td{font-weight:bold;background:#f7f7f7}
       @media print{button{display:none}}</style></head>
-      <body><h2>${centerName} — ${en ? "Payment Matrix" : "পেমেন্ট ম্যাট্রিক্স"}</h2>
+      <body><h2>${centerName} — Payment Matrix</h2>
       <table><thead><tr>${head}</tr></thead><tbody>${body}${footer}</tbody></table>
-      <div style="text-align:center;margin-top:16px"><button onclick="window.print()">${t("ar_print")}</button></div>
+      <div style="text-align:center;margin-top:16px"><button onclick="window.print()">Print</button></div>
       </body></html>`
     );
     w.document.close();
@@ -219,100 +284,185 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
   }
 
   if (rows.length === 0) {
-    return <EmptyState title={t("mx_no_data")} description={t("mx_no_data_desc")} />;
+    return <EmptyState title="No records" description="No data in this date range." />;
   }
 
+  const sortLabel = (key: SortKey, label: string, align: "left" | "right" = "left") => (
+    <TableCell align={align} sortDirection={sort.key === key ? sort.dir : false}>
+      <TableSortLabel active={sort.key === key} direction={sort.key === key ? sort.dir : "asc"} onClick={() => onSort(key)}>
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+
   return (
-    <Stack spacing={1.5}>
+    <Stack spacing={2}>
+      {/* Summary cards */}
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1.5,
+          gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)", md: "repeat(5, 1fr)" },
+        }}
+      >
+        <StatCard label="Students" value={String(totals.count)} icon={<GroupsIcon />} color="secondary.main" />
+        <StatCard label="Payable" value={taka(totals.payable)} icon={<AccountBalanceWalletIcon />} color="#0F7A6B" />
+        <StatCard label="Collected" value={taka(totals.collected)} icon={<PaidIcon />} color="success.main" />
+        <StatCard label="Due" value={taka(totals.due)} icon={<ReportProblemIcon />} color="error.main" />
+        <StatCard label="Advance" value={taka(totals.advance)} icon={<SavingsIcon />} color="info.main" />
+      </Box>
+
+      {/* Toolbar: search + status filter + export */}
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }} useFlexGap flexWrap="wrap">
         <TextField
           size="small"
-          placeholder={t("mx_search")}
+          placeholder="Search name, roll, class..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => onSearch(e.target.value)}
           InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
-          sx={{ maxWidth: 280 }}
+          sx={{ maxWidth: { sm: 280 }, width: "100%" }}
         />
-        <Chip color="error" variant="outlined" sx={{ fontWeight: 700 }} label={`${t("r_total_due")}: ${taka(totals.due)}`} />
-        <Chip color="success" variant="outlined" sx={{ fontWeight: 700 }} label={`${t("r_total_collected")}: ${taka(totals.collected)}`} />
-        {totals.advance > 0 && (
-          <Chip color="info" variant="outlined" sx={{ fontWeight: 700 }} label={`${t("mx_advance")}: ${taka(totals.advance)}`} />
-        )}
+        <TextField
+          select
+          size="small"
+          label="Status"
+          value={statusFilter}
+          onChange={(e) => onStatusFilter(e.target.value as "" | StatusKind)}
+          sx={{ minWidth: 140 }}
+        >
+          <MenuItem value="">All</MenuItem>
+          <MenuItem value="paid">Paid</MenuItem>
+          <MenuItem value="partial">Partial</MenuItem>
+          <MenuItem value="due">Due</MenuItem>
+          <MenuItem value="advance">Advance</MenuItem>
+        </TextField>
         <Box sx={{ flex: 1 }} />
-        <Button startIcon={<DownloadIcon />} variant="outlined" onClick={exportExcel}>
-          {t("export_excel")}
+        <Button startIcon={<DownloadIcon />} variant="outlined" onClick={exportExcel} disabled={totals.count === 0}>
+          Excel
         </Button>
-        <Button startIcon={<PrintIcon />} variant="outlined" onClick={printMatrix}>
-          {t("ar_print")}
+        <Button startIcon={<PrintIcon />} variant="outlined" onClick={printMatrix} disabled={totals.count === 0}>
+          PDF
         </Button>
       </Stack>
 
-      <Box sx={{ width: "100%", overflowX: "auto" }}>
-        <Table size="small" sx={{ minWidth: 640, "& td, & th": { whiteSpace: "nowrap" } }}>
-          <TableHead>
-            <TableRow>
-              <TableCell>{t("c_name")}</TableCell>
-              <TableCell>{t("c_roll")}</TableCell>
-              <TableCell>{t("c_class")}</TableCell>
-              {months.map((m) => (
-                <TableCell key={m.key} align="right">
-                  {monthName(m.month)}
-                </TableCell>
-              ))}
-              <TableCell align="right">{t("mx_payable")}</TableCell>
-              <TableCell align="right">{t("c_paid")}</TableCell>
-              <TableCell align="right">{t("c_due")}</TableCell>
-              <TableCell align="right">%</TableCell>
-              <TableCell>{t("c_status")}</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {shown.map((s) => {
-              const due = dueOf(s);
-              const st = statusOf(s.payable, s.collected, t);
-              return (
-                <TableRow key={s.studentId} hover>
-                  <TableCell>{s.name}</TableCell>
-                  <TableCell>{toBnDigits(s.roll)}</TableCell>
-                  <TableCell>{s.className}</TableCell>
+      {totals.count === 0 ? (
+        <EmptyState title="No matching students" description="Adjust the search or status filter." />
+      ) : (
+        <>
+          {/* Mobile: per-student cards (month breakdown omitted for width) */}
+          <Box sx={{ display: { xs: "block", md: "none" } }}>
+            <Stack spacing={1.25}>
+              {paged.map((s) => {
+                const st = STATUS_META[statusOf(s.payable, s.collected)];
+                const due = dueOf(s);
+                const adv = advanceOf(s);
+                return (
+                  <DataCard
+                    key={s.studentId}
+                    title={s.name}
+                    subtitle={`${s.className} ${s.sectionName} · Roll ${s.roll}`}
+                    right={<Chip size="small" color={st.color} label={st.label} />}
+                    fields={[
+                      { label: "Payable", value: taka(s.payable) },
+                      { label: "Collected", value: taka(s.collected) },
+                      {
+                        label: adv > 0 ? "Advance" : "Due",
+                        value: (
+                          <Box component="span" sx={{ color: due > 0 ? "error.main" : adv > 0 ? "info.main" : "inherit" }}>
+                            {taka(adv > 0 ? adv : due)}
+                          </Box>
+                        ),
+                      },
+                      { label: "Progress", value: `${pctOf(s)}%` },
+                    ]}
+                  />
+                );
+              })}
+            </Stack>
+          </Box>
+
+          {/* Desktop/tablet: full pivot table with month columns */}
+          <TableContainer sx={{ display: { xs: "none", md: "block" }, width: "100%", overflowX: "auto" }}>
+            <Table size="small" stickyHeader sx={{ minWidth: 720, "& td, & th": { whiteSpace: "nowrap" } }}>
+              <TableHead>
+                <TableRow>
+                  {sortLabel("name", "Name")}
+                  {sortLabel("roll", "Roll")}
+                  {sortLabel("className", "Class")}
                   {months.map((m) => (
                     <TableCell key={m.key} align="right">
-                      {taka(s.cells[m.key] ?? 0)}
+                      {monthName(m.month)}
                     </TableCell>
                   ))}
-                  <TableCell align="right">{taka(s.payable)}</TableCell>
-                  <TableCell align="right">{taka(s.collected)}</TableCell>
-                  <TableCell align="right" sx={{ color: due > 0 ? "error.main" : undefined }}>
-                    {taka(due)}
-                  </TableCell>
-                  <TableCell align="right">{toBnDigits(pctOf(s))}%</TableCell>
-                  <TableCell>
-                    <Chip size="small" color={st.color} label={st.label} />
-                  </TableCell>
+                  {sortLabel("payable", "Payable", "right")}
+                  {sortLabel("collected", "Collected", "right")}
+                  {sortLabel("due", "Due", "right")}
+                  {sortLabel("pct", "%", "right")}
+                  {sortLabel("status", "Status")}
                 </TableRow>
-              );
-            })}
-            {/* Totals footer */}
-            <TableRow sx={{ "& td": { fontWeight: 800, borderTop: "2px solid", borderColor: "divider" } }}>
-              <TableCell>{t("c_total")}</TableCell>
-              <TableCell />
-              <TableCell />
-              {months.map((m) => (
-                <TableCell key={m.key} align="right">
-                  {taka(totals.perMonth[m.key] ?? 0)}
-                </TableCell>
-              ))}
-              <TableCell align="right">{taka(totals.payable)}</TableCell>
-              <TableCell align="right">{taka(totals.collected)}</TableCell>
-              <TableCell align="right" sx={{ color: totals.due > 0 ? "error.main" : undefined }}>
-                {taka(totals.due)}
-              </TableCell>
-              <TableCell />
-              <TableCell />
-            </TableRow>
-          </TableBody>
-        </Table>
-      </Box>
+              </TableHead>
+              <TableBody>
+                {paged.map((s) => {
+                  const due = dueOf(s);
+                  const st = STATUS_META[statusOf(s.payable, s.collected)];
+                  return (
+                    <TableRow key={s.studentId} hover>
+                      <TableCell>{s.name}</TableCell>
+                      <TableCell>{s.roll}</TableCell>
+                      <TableCell>{s.className}</TableCell>
+                      {months.map((m) => (
+                        <TableCell key={m.key} align="right">
+                          {taka(s.cells[m.key] ?? 0)}
+                        </TableCell>
+                      ))}
+                      <TableCell align="right">{taka(s.payable)}</TableCell>
+                      <TableCell align="right">{taka(s.collected)}</TableCell>
+                      <TableCell align="right" sx={{ color: due > 0 ? "error.main" : undefined }}>
+                        {taka(due)}
+                      </TableCell>
+                      <TableCell align="right">{pctOf(s)}%</TableCell>
+                      <TableCell>
+                        <Chip size="small" color={st.color} label={st.label} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {/* Totals footer (over the full filtered set) */}
+                <TableRow sx={{ "& td": { fontWeight: 800, borderTop: "2px solid", borderColor: "divider" } }}>
+                  <TableCell>Total</TableCell>
+                  <TableCell />
+                  <TableCell />
+                  {months.map((m) => (
+                    <TableCell key={m.key} align="right">
+                      {taka(totals.perMonth[m.key] ?? 0)}
+                    </TableCell>
+                  ))}
+                  <TableCell align="right">{taka(totals.payable)}</TableCell>
+                  <TableCell align="right">{taka(totals.collected)}</TableCell>
+                  <TableCell align="right" sx={{ color: totals.due > 0 ? "error.main" : undefined }}>
+                    {taka(totals.due)}
+                  </TableCell>
+                  <TableCell />
+                  <TableCell />
+                </TableRow>
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <TablePagination
+            component="div"
+            count={totals.count}
+            page={page}
+            onPageChange={(_e, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[25, 50, 100]}
+          />
+        </>
+      )}
     </Stack>
   );
 }

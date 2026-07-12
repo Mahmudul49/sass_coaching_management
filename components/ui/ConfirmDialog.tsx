@@ -11,10 +11,10 @@ import Button from "@mui/material/Button";
  */
 export default function ConfirmDialog({
   open,
-  title = "নিশ্চিত করুন",
+  title = "Confirm",
   message,
-  confirmText = "হ্যাঁ, মুছে ফেলুন",
-  cancelText = "বাতিল",
+  confirmText = "Yes, delete",
+  cancelText = "Cancel",
   loading = false,
   onConfirm,
   onClose,

@@ -45,17 +45,16 @@ export default function NotFound() {
             mb: 1,
           }}
         >
-          ৪০৪
+          404
         </Typography>
         <Typography variant="h6" sx={{ mb: 0.5 }}>
-          পেজ খুঁজে পাওয়া যায়নি / Page not found
+          Page not found
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, lineHeight: 1.6 }}>
-          পেজটি খুঁজে পাওয়া যায়নি অথবা এই ঠিকানায় কোনো সেন্টার নেই। / This page doesn&apos;t exist, or
-          no center lives at this address.
+          This page doesn&apos;t exist, or no center lives at this address.
         </Typography>
         <Button component={NextLink} href="/login" size="large">
-          লগইন পেজে যান / Go to login
+          Go to login
         </Button>
       </Box>
     </Box>

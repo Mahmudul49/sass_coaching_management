@@ -40,7 +40,6 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import LogoutButton from "./LogoutButton";
-import LanguageToggle from "./LanguageToggle";
 import { alpha } from "@mui/material/styles";
 import { tenantAdminBaseFromPath } from "./tenantAdminBase";
 import { useI18n } from "@/components/providers/I18nProvider";
@@ -81,10 +80,10 @@ const MODEL: NodeDef[] = [
     icon: <AccountBalanceWalletIcon />,
     children: [
       { key: "nav_payments", slug: "/payments", icon: <PaidIcon /> },
+      { key: "nav_reports", slug: "/reports", icon: <AssessmentIcon /> },
       { key: "nav_fees", slug: "/fees", icon: <ReceiptLongIcon /> },
     ],
   },
-  { kind: "leaf", key: "nav_reports", slug: "/reports", icon: <AssessmentIcon /> },
   { kind: "leaf", key: "nav_messages", slug: "/messages", icon: <ForumOutlinedIcon />, badgeKey: "messages" },
   { kind: "leaf", key: "nav_settings", slug: "/settings", icon: <SettingsIcon /> },
 ];
@@ -408,7 +407,6 @@ export default function AdminShell({
               </Badge>
             </IconButton>
           </Tooltip>
-          <LanguageToggle />
           <LogoutButton />
         </Toolbar>
       </AppBar>

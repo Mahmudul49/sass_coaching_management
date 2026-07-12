@@ -30,7 +30,6 @@ import DarkModeIcon from "@mui/icons-material/DarkMode";
 import type { Role } from "@/lib/db/collections";
 import { can, type Permission } from "@/lib/auth/permissions";
 import LogoutButton from "@/components/layout/LogoutButton";
-import LanguageToggle from "@/components/layout/LanguageToggle";
 import { useConsoleMode } from "@/components/providers/ConsoleThemeProvider";
 
 const DRAWER_WIDTH = 264;
@@ -180,7 +179,6 @@ export default function ConsoleShell({
               {mode === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
             </IconButton>
           </Tooltip>
-          <LanguageToggle />
           <LogoutButton />
         </Toolbar>
       </AppBar>

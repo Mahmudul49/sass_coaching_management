@@ -51,7 +51,7 @@ export default function SetupChecklist({ status }: { status: SetupStatus }) {
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h6">{t("setup_title")}</Typography>
           {status.complete && (
-            <IconButton size="small" onClick={dismiss} aria-label="বন্ধ করুন">
+            <IconButton size="small" onClick={dismiss} aria-label="Dismiss">
               <CloseIcon fontSize="small" />
             </IconButton>
           )}

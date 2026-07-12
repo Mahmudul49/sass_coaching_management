@@ -26,8 +26,8 @@ export default async function AttendancePage({
         <Typography variant="h5">{t("nav_attendance")}</Typography>
         <Card sx={{ p: 2 }}>
           <EmptyState
-            title="আগে ক্লাস ও শিক্ষার্থী যোগ করুন"
-            description="উপস্থিতি নেওয়ার আগে ক্লাস ও শিক্ষার্থী থাকতে হবে।"
+            title="Add classes and students first"
+            description="You need classes and students before taking attendance."
           />
         </Card>
       </Stack>
