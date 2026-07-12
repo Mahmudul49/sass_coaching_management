@@ -17,6 +17,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import ResponsiveTable from "@/components/ui/ResponsiveTable";
 import DataCard from "@/components/ui/DataCard";
 import { exportAoa } from "@/lib/excel";
+import { printReportTable } from "@/lib/print";
 import type { ClassRow, AttendanceReportRow } from "@/lib/admin/queries";
 import { loadAttendanceReport } from "@/app/[tenant]/admin/actions/reports";
 import { toBnDigits as bnFmt } from "@/lib/format";
@@ -43,7 +44,6 @@ export default function AttendanceReportClient({
   className: string;
 }) {
   const { t, locale } = useI18n();
-  const en = locale === "en";
   const toBnDigits = (v: string | number) => bnFmt(v, locale);
   const toast = useToast();
   const pathname = usePathname();
@@ -132,35 +132,14 @@ export default function AttendanceReportClient({
   }
 
   function printReport() {
-    const w = window.open("", "_blank", "width=900,height=700");
-    if (!w) return;
-    const body = rows
-      .map(
-        (r) =>
-          `<tr><td>${toBnDigits(r.roll)}</td><td>${r.name}</td><td>${r.sectionName}</td><td style="text-align:right">${toBnDigits(
-            r.present
-          )}</td><td style="text-align:right">${toBnDigits(r.absent)}</td><td style="text-align:right">${toBnDigits(
-            r.total
-          )}</td><td style="text-align:right">${toBnDigits(r.pct)}%</td></tr>`
-      )
-      .join("");
-    w.document.write(
-      `<!doctype html><html><head><meta charset="utf-8"><title>Attendance Report</title>
-      <style>body{font-family:'Hind Siliguri',sans-serif;padding:16px}h2,h4{text-align:center;margin:2px}
-      table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}th,td{border:1px solid #ccc;padding:5px 7px}
-      th{background:#f0f0f0}@media print{button{display:none}}</style></head>
-      <body><h2>${centerName}</h2><h4>${en ? "Attendance Report" : "উপস্থিতি রিপোর্ট"} — ${className} (${toBnDigits(from)} → ${toBnDigits(to)})</h4>
-      <table><thead><tr>${
-        en
-          ? "<th>Roll</th><th>Name</th><th>Section</th><th>Present</th><th>Absent</th><th>Total</th><th>Rate</th>"
-          : "<th>রোল</th><th>নাম</th><th>শাখা</th><th>উপস্থিত</th><th>অনুপস্থিত</th><th>মোট</th><th>হার</th>"
-      }</tr></thead>
-      <tbody>${body}</tbody></table>
-      <div style="text-align:center;margin-top:16px"><button onclick="window.print()">${en ? "Print" : "প্রিন্ট"}</button></div></body></html>`
-    );
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 400);
+    printReportTable({
+      title: centerName,
+      subtitle: `Attendance Report — ${className}`,
+      meta: [`From: ${from}`, `To: ${to}`],
+      head: ["Roll", "Name", "Section", "Present", "Absent", "Total", "Rate"],
+      rows: rows.map((r) => [r.roll, r.name, r.sectionName, r.present, r.absent, r.total, `${r.pct}%`]),
+      numericFrom: 3,
+    });
   }
 
   const renderCard = (r: AttendanceReportRow) => (

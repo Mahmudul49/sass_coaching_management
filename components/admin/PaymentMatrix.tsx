@@ -27,6 +27,7 @@ import StatCard from "@/components/ui/StatCard";
 import DataCard from "@/components/ui/DataCard";
 import EmptyState from "@/components/ui/EmptyState";
 import { exportAoa } from "@/lib/excel";
+import { brandHeader, dataTable, docFooter, openPrintWindow, renderPrintDoc } from "@/lib/print/document";
 import type { DueRow } from "@/lib/admin/queries";
 import { monthName as monthNameFmt, taka as takaFmt } from "@/lib/format";
 
@@ -240,47 +241,49 @@ export default function PaymentMatrix({ rows, centerName }: { rows: DueRow[]; ce
   }
 
   function printMatrix() {
-    const w = window.open("", "_blank", "width=1000,height=700");
-    if (!w) return;
-    const th = (s: string) => `<th>${s}</th>`;
-    const head =
-      th("Name") +
-      th("Roll") +
-      th("Class") +
-      months.map((m) => th(`${monthName(m.month)}`)).join("") +
-      th("Payable") +
-      th("Collected") +
-      th("Due") +
-      th("%") +
-      th("Status");
-    const body = sorted
-      .map((s) => {
-        const cells = months.map((m) => `<td class="r">${taka(s.cells[m.key] ?? 0)}</td>`).join("");
-        return `<tr><td>${s.name}</td><td>${s.roll}</td><td>${s.className}</td>${cells}<td class="r">${taka(
-          s.payable
-        )}</td><td class="r">${taka(s.collected)}</td><td class="r">${taka(dueOf(s))}</td><td class="r">${pctOf(
-          s
-        )}%</td><td>${STATUS_META[statusOf(s.payable, s.collected)].label}</td></tr>`;
-      })
-      .join("");
-    const monthTotals = months.map((m) => `<td class="r">${taka(totals.perMonth[m.key] ?? 0)}</td>`).join("");
-    const footer = `<tr class="tot"><td>Total</td><td></td><td></td>${monthTotals}<td class="r">${taka(
-      totals.payable
-    )}</td><td class="r">${taka(totals.collected)}</td><td class="r">${taka(totals.due)}</td><td></td><td></td></tr>`;
-    w.document.write(
-      `<!doctype html><html><head><meta charset="utf-8"><title>Payment Matrix</title>
-      <style>body{font-family:'Hind Siliguri',sans-serif;padding:16px}h2{text-align:center}
-      table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:4px 6px}
-      th{background:#f0f0f0}.r{text-align:right}.tot td{font-weight:bold;background:#f7f7f7}
-      @media print{button{display:none}}</style></head>
-      <body><h2>${centerName} — Payment Matrix</h2>
-      <table><thead><tr>${head}</tr></thead><tbody>${body}${footer}</tbody></table>
-      <div style="text-align:center;margin-top:16px"><button onclick="window.print()">Print</button></div>
-      </body></html>`
-    );
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 400);
+    const head = [
+      "Name",
+      "Roll",
+      "Class",
+      ...months.map((m) => monthName(m.month)),
+      "Payable",
+      "Collected",
+      "Due",
+      "%",
+      "Status",
+    ];
+    const body = sorted.map((s) => [
+      s.name,
+      s.roll,
+      s.className,
+      ...months.map((m) => taka(s.cells[m.key] ?? 0)),
+      taka(s.payable),
+      taka(s.collected),
+      taka(dueOf(s)),
+      `${pctOf(s)}%`,
+      STATUS_META[statusOf(s.payable, s.collected)].label,
+    ]);
+    const footer = [
+      "Total",
+      "",
+      "",
+      ...months.map((m) => taka(totals.perMonth[m.key] ?? 0)),
+      taka(totals.payable),
+      taka(totals.collected),
+      taka(totals.due),
+      "",
+      "",
+    ];
+    const doc = renderPrintDoc({
+      title: "Payment Matrix",
+      orientation: "portrait",
+      body: `
+        ${brandHeader({ centerName, eyebrow: "Finance", subtitle: "Payment Matrix" })}
+        ${dataTable({ head, rows: body, numericFrom: 3, footer })}
+        ${docFooter(`${totals.count} student${totals.count === 1 ? "" : "s"}`)}
+      `,
+    });
+    openPrintWindow(doc, 1100, 800);
   }
 
   if (rows.length === 0) {

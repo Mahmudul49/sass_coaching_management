@@ -339,6 +339,7 @@ export default function PaymentsClient({
       roll: row.roll,
       className,
       sectionName: row.sectionName,
+      phone: row.phone,
       month,
       year,
       lines: [
