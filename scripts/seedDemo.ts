@@ -46,14 +46,14 @@ const DEMO_COLLECTIONS = [
   "messages",
 ];
 
-// Demo content is fully English (names, subjects, fee labels, SMS).
+// Demo content is fully English; student names are Bangladeshi (romanized).
 const FIRST = [
-  "Aiden", "Olivia", "Liam", "Emma", "Noah", "Ava", "Ethan", "Sophia", "Mason", "Isabella",
-  "Lucas", "Mia", "Oliver", "Amelia", "James", "Harper", "Benjamin", "Evelyn", "Henry", "Abigail",
-  "Alexander", "Emily", "Daniel", "Elizabeth", "Michael", "Sofia", "William", "Ella", "David", "Grace",
-  "Joseph", "Chloe", "Samuel", "Victoria", "John", "Lily", "Ryan", "Zoe", "Adam", "Hannah",
+  "Rahim", "Karim", "Salma", "Ayesha", "Tanvir", "Nusrat", "Sakib", "Mitu", "Rakib", "Fariya",
+  "Hasan", "Jannat", "Imran", "Sumaiya", "Naeem", "Tasnim", "Riad", "Maria", "Shakil", "Lamia",
+  "Arif", "Sadia", "Mehedi", "Rubina", "Zubayer", "Tania", "Asif", "Nila", "Rafi", "Oishi",
+  "Sohan", "Munia", "Nafis", "Priya", "Rayhan", "Sejuti", "Tamim", "Bristy", "Sajib", "Mou",
 ];
-const LAST = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Davis", "Miller", "Wilson"];
+const LAST = ["Uddin", "Sheikh", "Akter", "Hossain", "Islam", "Khan", "Chowdhury", "Rahman"];
 const SUBJECTS = ["English", "Mathematics", "Science", "Social Studies", "Religious Studies"];
 
 type FeeStructure = {
