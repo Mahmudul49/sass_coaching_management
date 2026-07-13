@@ -46,14 +46,15 @@ const DEMO_COLLECTIONS = [
   "messages",
 ];
 
+// Demo content is fully English (names, subjects, fee labels, SMS).
 const FIRST = [
-  "রহিম", "করিম", "সালমা", "আয়েশা", "তানভীর", "নুসরাত", "সাকিব", "মিতু", "রাকিব", "ফারিয়া",
-  "হাসান", "জান্নাত", "ইমরান", "সুমাইয়া", "নাঈম", "তাসনিম", "রিয়াদ", "মারিয়া", "শাকিল", "লামিয়া",
-  "আরিফ", "সাদিয়া", "মেহেদী", "রুবিনা", "জুবায়ের", "তানিয়া", "আসিফ", "নীলা", "রাফি", "ঐশী",
-  "সোহান", "মুন", "নাফিস", "প্রিয়া", "রায়হান", "সেঁজুতি", "তামিম", "বৃষ্টি", "সজীব", "মৌ",
+  "Aiden", "Olivia", "Liam", "Emma", "Noah", "Ava", "Ethan", "Sophia", "Mason", "Isabella",
+  "Lucas", "Mia", "Oliver", "Amelia", "James", "Harper", "Benjamin", "Evelyn", "Henry", "Abigail",
+  "Alexander", "Emily", "Daniel", "Elizabeth", "Michael", "Sofia", "William", "Ella", "David", "Grace",
+  "Joseph", "Chloe", "Samuel", "Victoria", "John", "Lily", "Ryan", "Zoe", "Adam", "Hannah",
 ];
-const LAST = ["উদ্দিন", "শেখ", "আক্তার", "হোসেন", "ইসলাম", "খান", "চৌধুরী", "রহমান"];
-const SUBJECTS = ["বাংলা", "English", "গণিত", "বিজ্ঞান", "ধর্ম"];
+const LAST = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Davis", "Miller", "Wilson"];
+const SUBJECTS = ["English", "Mathematics", "Science", "Social Studies", "Religious Studies"];
 
 type FeeStructure = {
   admissionFee: number;
@@ -68,12 +69,12 @@ type FeeStructure = {
 function payableComponents(fee: FeeStructure, month: number) {
   const comps: { type: string; label: string; amount: number }[] = [];
   if (fee.admissionFee > 0 && fee.admissionMonth === month)
-    comps.push({ type: "admission", label: "ভর্তি ফি", amount: fee.admissionFee });
-  comps.push({ type: "monthly", label: "মাসিক ফি", amount: fee.monthlyFee });
+    comps.push({ type: "admission", label: "Admission Fee", amount: fee.admissionFee });
+  comps.push({ type: "monthly", label: "Monthly Fee", amount: fee.monthlyFee });
   if (fee.modelTestHalfYearly.enabled && fee.modelTestHalfYearly.month === month)
-    comps.push({ type: "model_half", label: "ষান্মাসিক মডেল টেস্ট", amount: fee.modelTestHalfYearly.amount });
+    comps.push({ type: "model_half", label: "Half-Yearly Model Test", amount: fee.modelTestHalfYearly.amount });
   if (fee.modelTestAnnual.enabled && fee.modelTestAnnual.month === month)
-    comps.push({ type: "model_annual", label: "বার্ষিক মডেল টেস্ট", amount: fee.modelTestAnnual.amount });
+    comps.push({ type: "model_annual", label: "Annual Model Test", amount: fee.modelTestAnnual.amount });
   for (const o of fee.others) comps.push({ type: "other", label: o.label, amount: o.amount }); // month undefined = every month
   return comps;
 }
@@ -116,9 +117,9 @@ async function main() {
 
   // ── Classes, sections, subjects, fee structures ───────────────────────────
   const classDefs = [
-    { name: "Class 6", order: 6, monthly: 800, admission: 500, half: 300, annual: 500, others: [{ label: "পরীক্ষা ফি", amount: 100 }] },
+    { name: "Class 6", order: 6, monthly: 800, admission: 500, half: 300, annual: 500, others: [{ label: "Exam Fee", amount: 100 }] },
     { name: "Class 7", order: 7, monthly: 1000, admission: 600, half: 350, annual: 600, others: [] as { label: string; amount: number }[] },
-    { name: "Class 8", order: 8, monthly: 1200, admission: 700, half: 400, annual: 700, others: [{ label: "লাইব্রেরি ফি", amount: 50 }] },
+    { name: "Class 8", order: 8, monthly: 1200, admission: 700, half: 400, annual: 700, others: [{ label: "Library Fee", amount: 50 }] },
   ];
 
   type ClassInfo = { id: string; name: string; sections: { id: string; name: string }[]; subjectIds: string[]; fee: FeeStructure };
@@ -298,10 +299,10 @@ async function main() {
   someStudents.forEach((s, i) => {
     const kind = ["payment_received", "payment_due", "attendance_absent", "result_published"][i % 4];
     const body =
-      kind === "payment_received" ? `প্রিয় অভিভাবক, ${s.name} এর ফি জমা হয়েছে। ধন্যবাদ।`
-      : kind === "payment_due" ? `প্রিয় অভিভাবক, ${s.name} এর ফি বকেয়া রয়েছে।`
-      : kind === "attendance_absent" ? `প্রিয় অভিভাবক, ${s.name} আজ অনুপস্থিত ছিল।`
-      : `প্রিয় অভিভাবক, ${s.name} এর পরীক্ষার ফলাফল প্রকাশিত হয়েছে।`;
+      kind === "payment_received" ? `Dear guardian, ${s.name}'s fee has been received. Thank you.`
+      : kind === "payment_due" ? `Dear guardian, ${s.name}'s fee is due. Please pay soon.`
+      : kind === "attendance_absent" ? `Dear guardian, ${s.name} was absent today.`
+      : `Dear guardian, ${s.name}'s exam result has been published.`;
     smsLog.push({ tenantId, studentId: s.id, phone: s.phone, body, kind, sentAt: new Date(now.getTime() - i * 3600_000), ok: true });
   });
   await db.collection("smsLog").insertMany(smsLog as never[]);
