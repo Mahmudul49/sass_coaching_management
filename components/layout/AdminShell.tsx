@@ -338,7 +338,18 @@ export default function AdminShell({
   /* ── Sidebar contents (expanded = grouped, rail = flat icons) ─────────────── */
   const sidebar = (rail: boolean) => (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Toolbar sx={{ gap: 1.25, justifyContent: rail ? "center" : "flex-start" }}>
+      <Toolbar
+        sx={{
+          gap: 1.25,
+          justifyContent: rail ? "center" : "flex-start",
+          // Push the drawer header below the notch (0 on desktop / non-notched).
+          pt: "env(safe-area-inset-top)",
+          minHeight: {
+            xs: "calc(56px + env(safe-area-inset-top))",
+            sm: "calc(64px + env(safe-area-inset-top))",
+          },
+        }}
+      >
         <Box
           sx={{
             width: 34,
@@ -407,7 +418,17 @@ export default function AdminShell({
   return (
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
       <AppBar position="fixed" color="primary" sx={{ zIndex: (th) => th.zIndex.drawer + 1 }}>
-        <Toolbar>
+        <Toolbar
+          sx={{
+            // Respect the status-bar / notch when the PWA runs fullscreen
+            // (viewportFit: "cover") so the title never tucks under the notch.
+            pt: "env(safe-area-inset-top)",
+            minHeight: {
+              xs: "calc(56px + env(safe-area-inset-top))",
+              sm: "calc(64px + env(safe-area-inset-top))",
+            },
+          }}
+        >
           <IconButton
             color="inherit"
             edge="start"
@@ -484,11 +505,20 @@ export default function AdminShell({
             th.transitions.create("width", { duration: th.transitions.duration.shorter }),
         }}
       >
-        <Toolbar />
+        {/* Spacer matches the fixed AppBar height incl. the safe-area inset. */}
+        <Toolbar
+          sx={{
+            minHeight: {
+              xs: "calc(56px + env(safe-area-inset-top))",
+              sm: "calc(64px + env(safe-area-inset-top))",
+            },
+          }}
+        />
         <Box
           sx={{
             p: { xs: 1.5, sm: 2.5, md: 3 },
-            pb: { xs: 11, md: 3 }, // clear the mobile bottom nav
+            // Clear the mobile bottom nav *and* the home-indicator safe area.
+            pb: { xs: "calc(88px + env(safe-area-inset-bottom))", md: 3 },
             maxWidth: { md: 1180 },
             mx: "auto",
           }}
@@ -509,6 +539,9 @@ export default function AdminShell({
           zIndex: (th) => th.zIndex.appBar,
           borderTop: "1px solid",
           borderColor: "divider",
+          // Fill the home-indicator area with the bar's surface so the nav
+          // sits *above* the gesture bar rather than under it.
+          pb: "env(safe-area-inset-bottom)",
         }}
       >
         <BottomNavigation value={bottomValue} showLabels sx={{ height: 64 }}>
