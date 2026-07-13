@@ -231,11 +231,12 @@ function buildModules(version: number, codewords: number[], maskPattern: number,
   probe(count - 7, 0);
   probe(0, count - 7);
 
-  // Timing
-  for (let r = 8; r < count - 8; r++) if (m[r][6] === null) m[r][6] = r % 2 === 0;
-  for (let c = 8; c < count - 8; c++) if (m[6][c] === null) m[6][c] = c % 2 === 0;
-
-  // Alignment
+  // Alignment — MUST run before the timing pattern. For version 7+ some alignment
+  // patterns are centred on the timing row/column (coordinate 6); if timing were
+  // laid down first, the `!== null` guard below would wrongly skip those patterns
+  // and emit a malformed QR that scanners can't read. Timing (next) only fills the
+  // gaps the alignment patterns leave, so the two never conflict. (Matches the QR
+  // reference ordering: finders → alignment → timing.)
   const pos = ALIGN_POS[version];
   for (const row of pos)
     for (const col of pos) {
@@ -244,6 +245,10 @@ function buildModules(version: number, codewords: number[], maskPattern: number,
         for (let c = -2; c <= 2; c++)
           m[row + r][col + c] = r === -2 || r === 2 || c === -2 || c === 2 || (r === 0 && c === 0);
     }
+
+  // Timing — only fills modules not already claimed by finders or alignment.
+  for (let r = 8; r < count - 8; r++) if (m[r][6] === null) m[r][6] = r % 2 === 0;
+  for (let c = 8; c < count - 8; c++) if (m[6][c] === null) m[6][c] = c % 2 === 0;
 
   // Version info (v >= 7)
   if (version >= 7) {

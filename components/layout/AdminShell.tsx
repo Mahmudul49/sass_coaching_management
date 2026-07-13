@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import NextLink from "next/link";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
@@ -30,6 +30,7 @@ import FactCheckIcon from "@mui/icons-material/FactCheck";
 import GradingIcon from "@mui/icons-material/Grading";
 import PaidIcon from "@mui/icons-material/Paid";
 import AssessmentIcon from "@mui/icons-material/Assessment";
+import SummarizeIcon from "@mui/icons-material/Summarize";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import SchoolIcon from "@mui/icons-material/School";
@@ -53,7 +54,16 @@ const LS_GROUPS = "admin.nav.groups";
 /* ── Navigation model ──────────────────────────────────────────────────────────
    Regroups the existing 10 admin destinations into scannable clusters. No routes,
    guards or business logic change — only presentation and ordering. */
-type LeafDef = { key: MessageKey; slug: string; icon: ReactNode; badgeKey?: "messages" };
+type LeafDef = {
+  key: MessageKey;
+  slug: string;
+  icon: ReactNode;
+  badgeKey?: "messages";
+  // Optional `?tab=` query for destinations that share a path (e.g. the Reports
+  // page's payment/attendance tabs). Two leaves may point at the same `slug`
+  // and are disambiguated by this value for both the link and the active state.
+  tab?: string;
+};
 type NodeDef =
   | ({ kind: "leaf" } & LeafDef)
   | { kind: "group"; id: string; key: MessageKey; icon: ReactNode; children: LeafDef[] };
@@ -68,6 +78,9 @@ const MODEL: NodeDef[] = [
     icon: <MenuBookIcon />,
     children: [
       { key: "nav_attendance", slug: "/attendance", icon: <FactCheckIcon /> },
+      // Attendance report lives on the shared Reports page (Finance) under the
+      // `attendance` tab; surfaced here beside Attendance for discoverability.
+      { key: "nav_attendance_report", slug: "/reports", tab: "attendance", icon: <SummarizeIcon /> },
       { key: "nav_results", slug: "/results", icon: <GradingIcon /> },
       { key: "nav_classes", slug: "/classes", icon: <ClassIcon /> },
       { key: "nav_sections", slug: "/sections", icon: <CategoryIcon /> },
@@ -128,6 +141,8 @@ export default function AdminShell({
   unreadMessages?: number;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab");
   const base = tenantAdminBaseFromPath(pathname);
   const { t } = useI18n();
 
@@ -139,26 +154,38 @@ export default function AdminShell({
   });
 
   const hrefOf = useCallback((slug: string) => `${base}${slug}`, [base]);
+  // Full link target for a leaf, including its `?tab=` when present.
+  const leafHref = useCallback(
+    (leaf: LeafDef) => `${hrefOf(leaf.slug)}${leaf.tab ? `?tab=${leaf.tab}` : ""}`,
+    [hrefOf]
+  );
   const badgeOf = useCallback(
     (leaf: LeafDef) => (leaf.badgeKey === "messages" ? unreadMessages : 0),
     [unreadMessages]
   );
   const isActive = useCallback(
-    (slug: string) => {
-      const href = hrefOf(slug);
-      return slug === "" ? pathname === base : pathname.startsWith(href);
+    (leaf: LeafDef) => {
+      if (leaf.slug === "") return pathname === base;
+      if (!pathname.startsWith(hrefOf(leaf.slug))) return false;
+      // A leaf with a `tab` is active only on that tab. An untabbed leaf that
+      // shares its path with a tabbed sibling is the "default tab" and yields
+      // while that sibling's tab is selected — so exactly one of the pair is
+      // active (e.g. Finance "Reports" vs Academic "Attendance Report").
+      if (leaf.tab !== undefined) return currentTab === leaf.tab;
+      const tabbedSibling = ALL_LEAVES.find((l) => l.slug === leaf.slug && l.tab !== undefined);
+      return tabbedSibling ? currentTab !== tabbedSibling.tab : true;
     },
-    [pathname, base, hrefOf]
+    [pathname, base, hrefOf, currentTab]
   );
   const groupHasActive = useCallback(
-    (children: LeafDef[]) => children.some((c) => isActive(c.slug)),
+    (children: LeafDef[]) => children.some((c) => isActive(c)),
     [isActive]
   );
 
   // Auto-reveal the group that owns the current route — once, on first paint.
   useEffect(() => {
     const active = MODEL.find(
-      (n) => n.kind === "group" && n.children.some((c) => isActive(c.slug))
+      (n) => n.kind === "group" && n.children.some((c) => isActive(c))
     );
     if (active && active.kind === "group") {
       setOpenGroups((prev) => (prev[active.id] ? prev : { ...prev, [active.id]: true }));
@@ -168,7 +195,7 @@ export default function AdminShell({
   }, []);
 
   const activeLeaf = useMemo(
-    () => ALL_LEAVES.find((l) => isActive(l.slug)),
+    () => ALL_LEAVES.find((l) => isActive(l)),
     [isActive]
   );
   const pageTitle = activeLeaf ? t(activeLeaf.key) : centerName;
@@ -181,7 +208,7 @@ export default function AdminShell({
 
   /* ── Leaf row ─────────────────────────────────────────────────────────────── */
   const leafButton = (leaf: LeafDef, opts: { rail: boolean; nested?: boolean }) => {
-    const active = isActive(leaf.slug);
+    const active = isActive(leaf);
     const badge = badgeOf(leaf);
     const label = t(leaf.key);
     const icon = badge ? (
@@ -195,7 +222,7 @@ export default function AdminShell({
     const button = (
       <ListItemButton
         component={NextLink}
-        href={hrefOf(leaf.slug)}
+        href={leafHref(leaf)}
         selected={active}
         onClick={closeMobile}
         aria-current={active ? "page" : undefined}
@@ -243,7 +270,7 @@ export default function AdminShell({
     );
 
     return (
-      <ListItem key={leaf.slug} disablePadding sx={{ mb: 0.25 }}>
+      <ListItem key={leaf.key} disablePadding sx={{ mb: 0.25 }}>
         {opts.rail ? (
           <Tooltip title={label} placement="right" arrow>
             {button}
@@ -375,7 +402,7 @@ export default function AdminShell({
 
   /* ── Bottom navigation (mobile) ───────────────────────────────────────────── */
   const bottomLeaves = BOTTOM_SLUGS.map((slug) => ALL_LEAVES.find((l) => l.slug === slug)!);
-  const bottomValue = bottomLeaves.find((l) => isActive(l.slug))?.slug ?? false;
+  const bottomValue = bottomLeaves.find((l) => isActive(l))?.slug ?? false;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>

@@ -838,7 +838,7 @@ export default function PaymentsClient({
             </Box>
           </Card>
 
-          {/* Sticky save-all bar */}
+          {/* Sticky save-all bar — collection status, SMS opt-in and the primary save action */}
           <Paper
             elevation={4}
             sx={{
@@ -846,37 +846,77 @@ export default function PaymentsClient({
               bottom: { xs: 72, md: 8 },
               zIndex: 3,
               px: { xs: 1.5, sm: 2 },
-              py: 1.25,
+              py: { xs: 1.25, sm: 1.5 },
               borderRadius: 3,
               border: "1px solid",
               borderColor: "divider",
             }}
           >
-            {/* Opt-in SMS toggle sits above the save action (default: unchecked). */}
-            <FormControlLabel
-              control={<Checkbox size="small" checked={sendSms} onChange={(e) => setSendSms(e.target.checked)} />}
-              label={
-                <Typography variant="body2">
-                  {t("pay_send_sms")}
-                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-                    {t("pay_send_sms_hint")}
-                  </Typography>
-                </Typography>
-              }
-              sx={{ mb: 0.5, mr: 0 }}
+            {/* At-a-glance collection status + progress (mirrors the mobile summary card) */}
+            <Stack
+              direction="row"
+              alignItems="baseline"
+              justifyContent="space-between"
+              spacing={1}
+              sx={{ mb: 0.75 }}
+            >
+              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+                <Box component="span" fontWeight={700} color="text.primary">
+                  {toBnDigits(rows.length)}
+                </Box>{" "}
+                {t("students_word")}
+                <Box component="span" sx={{ mx: 0.75, color: "text.disabled" }}>·</Box>
+                <Box component="span" fontWeight={700} color="text.primary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                  {taka(summary.collected)}
+                </Box>
+                <Box component="span" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                  {" / "}
+                  {taka(summary.expected)}
+                </Box>
+              </Typography>
+              <Typography variant="subtitle2" fontWeight={800} color="success.main" sx={{ lineHeight: 1, flexShrink: 0 }}>
+                {toBnDigits(collectedPct)}%
+              </Typography>
+            </Stack>
+            <LinearProgress
+              variant="determinate"
+              value={collectedPct}
+              color="success"
+              sx={{ height: 8, borderRadius: 5 }}
             />
-            <Divider sx={{ mb: 1 }} />
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", sm: "block" } }}>
-                  {toBnDigits(rows.length)} {t("students_word")}
-                </Typography>
-                <Typography variant="body2" fontWeight={700} noWrap sx={{ fontVariantNumeric: "tabular-nums" }}>
-                  {toBnDigits(collectedPct)}% · {taka(summary.collected)}
-                </Typography>
-              </Box>
-              <Box sx={{ flex: 1 }} />
-              <Button startIcon={<SaveIcon />} onClick={saveAll} disabled={pending} size="large">
+
+            <Divider sx={{ my: 1.25 }} />
+
+            {/* Actions: SMS opt-in (secondary) + Save all (primary). Stacks on mobile so
+                the save button spans the full width and is easy to tap with a thumb. */}
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: { xs: "column", sm: "row" },
+                alignItems: { xs: "stretch", sm: "center" },
+                justifyContent: "space-between",
+                gap: { xs: 1.25, sm: 2 },
+              }}
+            >
+              <FormControlLabel
+                control={<Checkbox size="small" checked={sendSms} onChange={(e) => setSendSms(e.target.checked)} />}
+                label={
+                  <Typography variant="body2">
+                    {t("pay_send_sms")}
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                      {t("pay_send_sms_hint")}
+                    </Typography>
+                  </Typography>
+                }
+                sx={{ mr: 0 }}
+              />
+              <Button
+                startIcon={<SaveIcon />}
+                onClick={saveAll}
+                disabled={pending}
+                size="large"
+                sx={{ flexShrink: 0, width: { xs: "100%", sm: "auto" }, minWidth: { sm: 200 } }}
+              >
                 {pending ? t("pay_saving") : t("pay_save_all")}
               </Button>
             </Box>

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "seed:superadmin": "tsx scripts/seedSuperAdmin.ts",
     "seed:demo": "tsx scripts/seedDemo.ts",
+    "demo:reset": "tsx scripts/seedDemo.ts",
     "test:isolation": "tsx scripts/testIsolation.ts",
     "db:indexes": "tsx scripts/ensureIndexes.ts"
   },

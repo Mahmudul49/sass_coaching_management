@@ -31,7 +31,7 @@ import BlockIcon from "@mui/icons-material/Block";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useToast } from "@/components/providers/ToastProvider";
 import { useI18n } from "@/components/providers/I18nProvider";
-import { createTenant, setTenantActive, updateTenant, cleanCenterData } from "@/app/superadmin/actions";
+import { createTenant, setTenantActive, updateTenant, cleanCenterData, deleteCenter } from "@/app/superadmin/actions";
 import type { TenantRow } from "@/lib/superadmin/queries";
 import { toBnDigits } from "@/lib/format";
 import { tenantSiteLabel, tenantSiteUrl } from "@/lib/tenant/paths";
@@ -50,6 +50,7 @@ export default function TenantsClient({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TenantRow | null>(null);
   const [cleaning, setCleaning] = useState<TenantRow | null>(null);
+  const [deleting, setDeleting] = useState<TenantRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const columns = useMemo<GridColDef<TenantRow>[]>(
@@ -104,6 +105,7 @@ export default function TenantsClient({
                   onEdit={() => setEditing(p.row)}
                   onToggle={() => toggle(p.row)}
                   onClean={() => setCleaning(p.row)}
+                  onDelete={() => setDeleting(p.row)}
                 />
               ),
             } as GridColDef<TenantRow>,
@@ -198,6 +200,12 @@ export default function TenantsClient({
                         danger: true,
                         onClick: () => setCleaning(row),
                       },
+                      {
+                        label: "Delete Center",
+                        icon: <DeleteForeverIcon fontSize="small" />,
+                        danger: true,
+                        onClick: () => setDeleting(row),
+                      },
                     ]
                   : []
               }
@@ -217,6 +225,7 @@ export default function TenantsClient({
         rootDomain={rootDomain}
       />
       <CleanDataDialog tenant={cleaning} onClose={() => setCleaning(null)} />
+      <DeleteCenterDialog tenant={deleting} onClose={() => setDeleting(null)} />
     </Card>
   );
 }
@@ -231,12 +240,14 @@ function RowMenu({
   onEdit,
   onToggle,
   onClean,
+  onDelete,
 }: {
   active: boolean;
   disabled?: boolean;
   onEdit: () => void;
   onToggle: () => void;
   onClean: () => void;
+  onDelete: () => void;
 }) {
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
   const close = () => setAnchor(null);
@@ -283,6 +294,18 @@ function RowMenu({
             <CleaningServicesIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>Clean Data</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            close();
+            onDelete();
+          }}
+          sx={{ color: "error.main" }}
+        >
+          <ListItemIcon sx={{ color: "error.main" }}>
+            <DeleteForeverIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Delete Center</ListItemText>
         </MenuItem>
       </Menu>
     </>
@@ -397,6 +420,125 @@ function CleanDataDialog({ tenant, onClose }: { tenant: TenantRow | null; onClos
           <Alert severity="error">
             You are about to <b>permanently erase</b> all data for <b>{tenant?.name}</b>. This action is
             irreversible.
+          </Alert>
+          <Typography variant="body2" color="text.secondary">
+            Click “Permanently delete” to proceed, or Back to review.
+          </Typography>
+        </Stack>
+      )}
+    </ResponsiveDialog>
+  );
+}
+
+/**
+ * Delete Center — permanently removes the tenant ENTIRELY (data + admin users +
+ * profile), freeing the slug. Two-stage destructive flow: stage 1 requires the
+ * exact phrase "DELETE CENTER" and the super-admin's password; stage 2 is the
+ * final confirmation. Both are re-verified on the server.
+ */
+function DeleteCenterDialog({ tenant, onClose }: { tenant: TenantRow | null; onClose: () => void }) {
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  const [stage, setStage] = useState<"form" | "confirm">("form");
+  const [phrase, setPhrase] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset the flow whenever a different center is opened.
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+  if (tenant && tenant.id !== loadedId) {
+    setLoadedId(tenant.id);
+    setStage("form");
+    setPhrase("");
+    setPassword("");
+    setError(null);
+  }
+  if (!tenant && loadedId !== null) setLoadedId(null);
+
+  const phraseOk = phrase.trim() === "DELETE CENTER";
+  const canContinue = phraseOk && password.length > 0 && !pending;
+
+  function execute() {
+    if (!tenant) return;
+    setError(null);
+    start(async () => {
+      const res = await deleteCenter({ tenantId: tenant.id, confirmText: phrase, password });
+      if (res.ok) {
+        toast.success(
+          `${tenant.name} deleted — ${res.total ?? 0} record(s) removed. The site address is free again.`
+        );
+        onClose();
+      } else {
+        setError(res.error ?? "Something went wrong.");
+        setStage("form");
+      }
+    });
+  }
+
+  return (
+    <ResponsiveDialog
+      open={!!tenant}
+      onClose={onClose}
+      disableClose={pending}
+      title={stage === "form" ? "Delete Center" : "Final confirmation"}
+      actions={
+        stage === "form" ? (
+          <>
+            <Button variant="text" color="inherit" onClick={onClose} disabled={pending}>
+              Cancel
+            </Button>
+            <Button color="error" onClick={() => setStage("confirm")} disabled={!canContinue}>
+              Continue
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="text" color="inherit" onClick={() => setStage("form")} disabled={pending}>
+              Back
+            </Button>
+            <Button
+              color="error"
+              onClick={execute}
+              disabled={pending}
+              startIcon={pending ? <CircularProgress size={16} color="inherit" /> : <DeleteForeverIcon />}
+            >
+              {pending ? "Deleting…" : "Permanently delete"}
+            </Button>
+          </>
+        )
+      }
+    >
+      {stage === "form" ? (
+        <Stack spacing={2.5}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Alert severity="warning">
+            This permanently deletes <b>{tenant?.name}</b> and <b>everything</b> in it — the center
+            profile, its admin login, students, classes, sections, fees, payments, attendance, exams,
+            results, messages and SMS logs. The site address will become available again. Other centers
+            are not affected. This cannot be undone.
+          </Alert>
+          <TextField
+            label='Type "DELETE CENTER" to confirm'
+            value={phrase}
+            onChange={(e) => setPhrase(e.target.value)}
+            error={phrase.length > 0 && !phraseOk}
+            autoComplete="off"
+            slotProps={{ htmlInput: { spellCheck: false, autoCapitalize: "characters" } }}
+          />
+          <TextField
+            label="Your Super Admin password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </Stack>
+      ) : (
+        <Stack spacing={2}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Alert severity="error">
+            You are about to <b>permanently delete</b> <b>{tenant?.name}</b> and its admin account. This
+            action is irreversible.
           </Alert>
           <Typography variant="body2" color="text.secondary">
             Click “Permanently delete” to proceed, or Back to review.

@@ -9,7 +9,6 @@ import {
 } from "@/lib/admin/queries";
 import DueReportClient from "@/components/admin/DueReportClient";
 import AttendanceReportClient from "@/components/admin/AttendanceReportClient";
-import ReportTabs from "@/components/admin/ReportTabs";
 import { I18nProvider } from "@/components/providers/I18nProvider";
 import { dict } from "@/lib/i18n/dictionaries";
 import { currentYear, todayISO } from "@/lib/format";
@@ -41,8 +40,9 @@ export default async function ReportsPage({
   return (
     <I18nProvider initialLocale="en">
     <Stack spacing={2}>
-      <Typography variant="h5">{dict.en.nav_reports}</Typography>
-      <ReportTabs tab={tab} />
+      <Typography variant="h5">
+        {tab === "attendance" ? dict.en.tab_attendance : dict.en.tab_payment}
+      </Typography>
 
       {tab === "attendance" ? (
         await renderAttendance()
