@@ -27,7 +27,13 @@ export async function ensureIndexes(db: Db): Promise<void> {
 
     // students
     db.collection(Collections.students).createIndex({ tenantId: 1, classId: 1 }),
-    db.collection(Collections.students).createIndex({ tenantId: 1, active: 1 }),
+    // {tenantId, active, classId}: serves the `{tenantId, active}` status filter
+    // (prefix) AND *covers* the dashboard's per-class active-count aggregation
+    // (`getActiveCountsByClass`: match tenantId+active, group classId) as an
+    // index-only scan — no per-document fetch of the 100k students collection on
+    // every dashboard load. Supersedes the old narrow {tenantId, active}; that
+    // one is now redundant and can be dropped once (see scripts/ensureIndexes).
+    db.collection(Collections.students).createIndex({ tenantId: 1, active: 1, classId: 1 }),
     // Operational modules load active students of a class (payment/attendance/report).
     db.collection(Collections.students).createIndex({ tenantId: 1, classId: 1, active: 1 }),
 
